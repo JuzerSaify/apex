@@ -1,6 +1,6 @@
 import { OllamaClient } from './client.js';
 import { fetchModels } from './models.js';
-import { chat, chatStream, parseToolCalls } from './chat.js';
+import { chat, chatStream, chatStreamFull, parseToolCalls } from './chat.js';
 import type {
   OllamaModel,
   OllamaChatResponse,
@@ -39,6 +39,16 @@ export class OllamaProvider implements IProvider {
     config: AgentConfig
   ): AsyncGenerator<OllamaStreamChunk> {
     yield* chatStream(this.client, messages, tools, config);
+  }
+
+  /** Stream tokens via callback and return the full response (no second API call). */
+  async streamFull(
+    messages: Message[],
+    tools: ToolDefinition[],
+    config: AgentConfig,
+    onToken: (token: string) => void
+  ): Promise<OllamaChatResponse> {
+    return chatStreamFull(this.client, messages, tools, config, onToken);
   }
 
   parseToolCalls(response: OllamaChatResponse): ToolCall[] {

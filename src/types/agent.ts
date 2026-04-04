@@ -13,6 +13,8 @@ export interface ContentBlock {
 export interface Message {
   role: Role;
   content: string | ContentBlock[];
+  /** Ollama tool_calls — present on assistant messages that invoked tools */
+  tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
 }
 
 export type AgentStatus =

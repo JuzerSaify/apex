@@ -96,24 +96,15 @@ export class ApexAgent {
         this.emit({ type: 'status_change', status: 'thinking' });
 
         if (this.config.verbose) {
-          // Streaming mode
-          let fullContent = '';
-          const streamMsgs = [...state.messages];
-          for await (const chunk of this.provider.stream(streamMsgs, tools, this.config)) {
-            const token = chunk.message?.content ?? '';
-            if (token) {
-              fullContent += token;
-              this.emit({ type: 'token', token });
-            }
-            if (chunk.done) {
-              state.tokenCount += chunk.eval_count ?? 0;
-            }
-          }
-          // Re-fetch non-streaming for tool_calls
-          response = await this.provider.chat(streamMsgs, tools, this.config);
-          if (!response.message.tool_calls && fullContent) {
-            response.message.content = fullContent;
-          }
+          // Stream tokens for display AND collect the full response (tool_calls included) in
+          // one pass — avoids the previous double-call bug.
+          response = await this.provider.streamFull(
+            state.messages,
+            tools,
+            this.config,
+            (token) => this.emit({ type: 'token', token })
+          );
+          state.tokenCount += response.eval_count ?? 0;
         } else {
           response = await this.provider.chat(state.messages, tools, this.config);
           state.tokenCount += response.eval_count ?? 0;
@@ -160,8 +151,9 @@ export class ApexAgent {
         state.messages.push({
           role: 'user',
           content:
-            'Please continue working on the task. Use your available tools to make progress. ' +
-            'When the task is fully complete and verified, call the task_complete tool with a summary.',
+            `You have not used any tools in the last ${this.noToolStreak} turn(s). ` +
+            'Continue working on the original task using your available tools. ' +
+            'If the task is fully done and verified, call task_complete with a clear summary.',
         });
         continue;
       }
@@ -175,17 +167,21 @@ export class ApexAgent {
         const thought = String(thinkCall.arguments.thought ?? '');
         const steps = thought
           .split('\n')
-          .filter((l) => /^\s*\d+[.)\-]\s+/.test(l))
-          .map((l) => l.replace(/^\s*\d+[.)\-]\s+/, '').trim());
+          .filter((l) => /^\s*\d+[.):\-]\s+/.test(l))
+          .map((l) => l.replace(/^\s*\d+[.):\-]\s+/, '').trim())
+          .filter(Boolean);
         if (steps.length >= 2) {
           this.emit({ type: 'plan', steps });
         }
       }
 
-      // Add assistant message with tool calls
+      // Push assistant message WITH tool_calls so the model sees what it called in history
       state.messages.push({
         role: 'assistant',
-        content: assistantContent || `Calling ${toolCalls.length} tool(s)...`,
+        content: assistantContent,
+        tool_calls: toolCalls.map((tc) => ({
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
       });
 
       // Execute all tool calls
@@ -229,6 +225,11 @@ export class ApexAgent {
     if (state.iterations >= this.config.maxIterations && state.status !== 'complete') {
       state.status = 'error';
       state.error = `Reached max iterations (${this.config.maxIterations})`;
+      // Capture the last meaningful assistant message as the result
+      const lastAssistant = [...state.messages]
+        .reverse()
+        .find((m) => m.role === 'assistant' && typeof m.content === 'string' && m.content.trim());
+      if (lastAssistant) state.result = lastAssistant.content as string;
       this.emit({ type: 'error', message: state.error, recoverable: false });
     }
 

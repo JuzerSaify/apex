@@ -13,7 +13,12 @@ function toOllamaMessages(messages: Message[]): OllamaChatMessage[] {
     const content = Array.isArray(m.content)
       ? m.content.map((b) => (b.type === 'text' ? b.text ?? '' : '')).join('\n')
       : m.content;
-    return { role: m.role, content };
+    const msg: OllamaChatMessage = { role: m.role, content };
+    // Preserve tool_calls on assistant messages so the model sees what it called
+    if (m.tool_calls && m.tool_calls.length > 0) {
+      msg.tool_calls = m.tool_calls;
+    }
+    return msg;
   });
 }
 
@@ -91,6 +96,44 @@ export async function* chatStream(
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * Stream tokens to the caller via onToken callback and return the full response
+ * (including tool_calls from the final done chunk) without a second API call.
+ */
+export async function chatStreamFull(
+  client: OllamaClient,
+  messages: Message[],
+  tools: ToolDefinition[],
+  config: AgentConfig,
+  onToken: (token: string) => void
+): Promise<OllamaChatResponse> {
+  let fullContent = '';
+  let finalChunk: OllamaStreamChunk | null = null;
+
+  for await (const chunk of chatStream(client, messages, tools, config)) {
+    const token = chunk.message?.content ?? '';
+    if (token) {
+      fullContent += token;
+      onToken(token);
+    }
+    if (chunk.done) {
+      finalChunk = chunk;
+    }
+  }
+
+  return {
+    model: config.model,
+    message: {
+      role: 'assistant',
+      content: fullContent,
+      // tool_calls come in the final done chunk from Ollama
+      tool_calls: finalChunk?.message?.tool_calls,
+    },
+    done: true,
+    eval_count: finalChunk?.eval_count ?? 0,
+  };
 }
 
 export function parseToolCalls(response: OllamaChatResponse): ToolCall[] {
