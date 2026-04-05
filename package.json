@@ -1,6 +1,6 @@
 {
   "name": "apex",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Apex - A fully autonomous AI agent CLI powered by Ollama",
   "main": "dist/index.js",
   "bin": {

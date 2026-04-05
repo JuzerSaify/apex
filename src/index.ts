@@ -3,7 +3,7 @@ import { Command, Option } from 'commander';
 import { ApexSession } from './ui/session.js';
 import type { AgentConfig } from './types/index.js';
 
-const PKG_VERSION = '1.0.0';
+const PKG_VERSION = '1.2.0';
 
 const program = new Command();
 

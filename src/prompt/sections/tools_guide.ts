@@ -1,66 +1,64 @@
 export function toolsGuideSection(): string {
   return `## TOOL USAGE MASTERY
 
-### read_file
-- Use start_line/end_line to focus on specific sections of large files
-- Read the file header first (lines 1-30) to understand structure before reading the whole thing
-- After editing, re-read to confirm your change was applied correctly
-- Example: read_file("src/auth/middleware.ts", 45, 80) to see a specific function
+### READING FILES
+- **read_file** — read a file with optional line range. Always read before editing. Use start_line/end_line for large files.
+- **read_lines** — read multiple non-contiguous line ranges in ONE call. Efficient when you need function + test without the whole file.
+- **read_json** — read a JSON file and optionally extract a dot-path value: read_json("package.json", "scripts.build")
+- **list_directory** — tree view with depth control. Good for initial project exploration.
+- **list_files** — flat recursive list with optional extension filter. Best for file inventories: list_files("src", ".ts")
+- **search_files** — regex search across files. Use for finding usages, imports, TODO comments.
+- **glob** — pattern matching: "src/**/*.test.ts", "**/*.json". Use when you know the naming pattern.
+- **summarize_directory** — statistical overview: file counts by extension, total size, recently modified. Use on unfamiliar codebases.
 
-### list_directory
-- Start with depth=1 to get the project overview, then increase depth for specific areas
-- The tool skips node_modules, .git, dist — these are noise
-- Look for: src/, tests/, docs/, config/, scripts/ directories
+### WRITING & EDITING
+- **edit_file** — PRIMARY editing tool. Surgical find-and-replace. Include 3+ lines of context in old_string. Read the file first.
+- **patch_file** — apply MULTIPLE find-and-replace edits to one file in a single call. More efficient than chaining edit_file.
+- **write_file** — full file write. Use for new files or complete rewrites only.
+- **append_file** — add content to end of file. Creates file if needed. Use for logs, growing lists, config additions.
+- **regex_replace** — bulk pattern-based replacement with regex. Use for renaming across a file, format changes.
+- **write_json** — write or update a JSON file. Use set_key for targeted key updates: write_json("package.json", set_key="version", set_value="2.0.0")
+- **create_directory** — create nested directories (like mkdir -p).
+- **delete_file**, **move_file**, **copy_file** — file operations.
 
-### search_files
-- Use file_pattern to narrow scope: "*.ts", "*.test.js", "*.py"
-- For finding function definitions: search "function myFunc|const myFunc|def myFunc"
-- For finding imports: search "from.*myModule|require.*myModule"
-- For finding TODOs: search "TODO|FIXME|HACK"
-- Always check multiple files when understanding a pattern
+### EXECUTION
+- **bash** — run any shell command. 120s timeout. Use "2>&1" for stderr. Chain with && for dependent commands.
+- **node_eval** — run a JavaScript snippet in the current Node.js process. Good for quick computations, JSON transforms.
 
-### edit_file
-- This is your PRIMARY editing tool. Prefer it over write_file for changes to existing files
-- Include 3-5 lines of surrounding context in old_string to ensure uniqueness
-- If old_string contains multiple occurrences, add more context lines
-- For large changes to a single function, it's fine to include the entire function in old_string
+### NETWORK
+- **fetch_url** — GET a URL, up to 120KB. For docs, raw GitHub files, APIs.
+- **http_request** — full HTTP control: method, headers, JSON body. Use for POST/PUT/PATCH/DELETE APIs, webhooks, auth endpoints.
 
-### write_file
-- Use for new files or complete rewrites
-- Always specify the full, correct content — no partial writes
-- Create parent directories first with create_directory if needed
+### GIT
+- **git_status** — always run first in a git repo. Shows staged, unstaged, untracked.
+- **git_diff** — review changes before committing. Use path param to scope to a file.
+- **git_log** — recent commit history. Use n param to control count.
+- **git_commit** — commit with message. add_all:true stages everything. Use files:[] to be selective.
+- **git_stash** — save/restore uncommitted work: push, pop, list, apply, drop.
+- **git_branch** — list, create, switch, delete branches.
+- **git_pull** — pull from remote with optional rebase.
 
-### bash
-- Use for: npm install, running tests, git operations, checking environment, building
-- Chain commands with && when they depend on each other: "cd src && npm test"
-- For long-running operations, check if there's a timeout concern
-- Use "2>&1" to capture stderr: "npm build 2>&1"
-- Check return codes when correctness matters: "npm test && echo SUCCESS || echo FAILED"
+### CODE QUALITY
+- **lint** — run the project linter (ESLint, pylint, etc.). Read config first if available.
+- **run_tests** — run the test suite. Use filter to run specific tests.
 
-### git_status / git_diff / git_log / git_commit
-- Always run git_status first when beginning work in a git repo
-- Use git_diff before committing to review exactly what will be committed
-- Write commit messages in imperative mood: "Add authentication" not "Added authentication"
-- git_commit with add_all:true stages everything — use files:[] to be selective
+### UTILITY
+- **think** — reason through a complex problem before acting. Use at real decision points only.
+- **plan** — structured execution plan with steps + success criteria. Use at START of 3+ step tasks.
+- **diff_files** — compare two files or a file vs. proposed content. Use before/after editing to verify changes.
+- **environment** — read env vars, check what's set (with redaction for secrets), get system overview.
+- **process_info** — check running processes and port usage. Use to verify a server started or find port conflicts.
+- **memory_write** — persist important project facts for future sessions.
+- **memory_read** — recall previously saved project facts.
+- **checkpoint** — save/restore agent state at key points in long tasks.
+- **task_complete** — signal task completion. Only call after verifying the solution works.
 
-### run_tests
-- Run tests BEFORE making changes to establish a baseline
-- Run tests AFTER changes to prove nothing broke
-- Use the filter parameter to run specific tests during development
-- If tests fail unexpectedly, read the full output — the error is usually there
-
-### think
-- Use for multi-step planning before acting
-- Use when you're uncertain about the right approach
-- Write your reasoning as if explaining to a senior engineer
-
-### memory_write
-- Store important project facts that will help in future sessions
-- Key categories: architecture decisions, gotchas, test commands, deployment notes
-- Keep entries focused and actionable, not verbose
-
-### task_complete
-- Only call when you have VERIFIED the solution works
-- Include a clear summary of what was done
-- List all files that were created or modified in artifacts[]`;
+### USAGE RULES
+- Always read_file before edit_file
+- Always run git_status before git_commit
+- Always run run_tests after making code changes
+- Use patch_file instead of multiple edit_file calls when editing the same file
+- Use plan before tasks with 3+ steps
+- Use diff_files to verify edits applied correctly
+- Use summarize_directory before exploring an unfamiliar project`;
 }

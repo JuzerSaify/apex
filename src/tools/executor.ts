@@ -4,11 +4,19 @@ import type { ToolCall, ToolResult, AgentConfig } from '../types/index.js';
 
 // import all tool modules so they self-register
 import './read/read_file.js';
+import './read/read_lines.js';
 import './read/list_directory.js';
+import './read/list_files.js';
 import './read/search_files.js';
 import './read/glob.js';
+import './read/read_json.js';
+import './read/summarize_directory.js';
 import './write/write_file.js';
 import './write/edit_file.js';
+import './write/patch_file.js';
+import './write/append_file.js';
+import './write/regex_replace.js';
+import './write/write_json.js';
 import './write/create_directory.js';
 import './write/delete_file.js';
 import './write/move_file.js';
@@ -16,17 +24,23 @@ import './write/copy_file.js';
 import './execute/bash.js';
 import './execute/node_eval.js';
 import './network/fetch_url.js';
+import './network/http_request.js';
 import './git/git_status.js';
 import './git/git_diff.js';
 import './git/git_log.js';
 import './git/git_commit.js';
+import './git/git_extras.js';
 import './code/lint.js';
 import './code/run_tests.js';
 import './utility/think.js';
+import './utility/plan.js';
 import './utility/task_complete.js';
 import './utility/memory_read.js';
 import './utility/memory_write.js';
 import './utility/checkpoint.js';
+import './utility/diff_files.js';
+import './utility/environment.js';
+import './utility/process_info.js';
 
 export async function executeTool(
   call: ToolCall,

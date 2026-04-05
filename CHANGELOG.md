@@ -4,6 +4,58 @@ All notable changes to Apex are documented here.
 
 ---
 
+## [v1.2.0] — 2026-04-07
+
+### New Tools (16 registrations across 14 files)
+
+**Read**
+- `read_lines` — read multiple non-contiguous line ranges in a single call (more efficient than chained `read_file` calls)
+- `read_json` — read a JSON file with optional dot-path query (`"scripts.build"` → returns just that value)
+- `list_files` — flat recursive file listing with optional extension filter; skips `node_modules`, `.git`, `dist`
+- `summarize_directory` — directory statistics: file count by extension, total size, top-10 recently modified
+
+**Write**
+- `patch_file` — atomically apply N find-and-replace edits to one file in a single call
+- `append_file` — append content to a file (creates if absent); optional newline separator
+- `regex_replace` — regex-pattern find-and-replace across an entire file with flags support
+- `write_json` — write a JSON file or update a single key without overwriting the rest (`set_key` mode)
+
+**Network**
+- `http_request` — full HTTP client supporting POST/PUT/PATCH/DELETE/HEAD with custom headers and JSON body auto-detection
+
+**Git**
+- `git_stash` — push, pop, list, apply, drop stash entries
+- `git_branch` — list, create, switch, delete branches
+- `git_pull` — pull from remote with optional rebase
+
+**Utility**
+- `plan` — render a structured execution plan (goal, ordered steps, success criteria, risks)
+- `diff_files` — LCS-based unified diff between two files or a file vs. a proposed string
+- `environment` — read environment variables with prefix filtering and automatic secret redaction
+- `process_info` — inspect running processes and port usage (cross-platform: Windows + Unix)
+
+### Agent Improvements
+
+- **Tool error recovery** — when a tool call returns an error, the agent now injects an explicit recovery hint into the model's message history, prompting it to try a different approach or tool instead of silently retrying the same operation
+- **Consecutive error detection** — after 2+ consecutive tool failures, a stronger escalation hint is injected: "Try a completely different approach"
+- **Improved stall-detection nudge** — turn 1 stall gets a gentle reminder; turn 2+ stall gets an imperative directive to call a tool or `task_complete`
+- **`plan` tool support in loop** — the `plan` tool now renders a visible execution plan to the user at the start of complex tasks
+
+### Prompt Enhancements
+
+- **`identity.ts`** — version bumped to v1.2.0; complete tool inventory across 7 categories; tightened core principles
+- **`tools_guide.ts`** — rewritten with documentation for all 38 tools; organized by category with usage patterns and rules
+- **`principles.ts`** — principle 3 updated: `plan` is now explicitly required before multi-step tasks; `think` reserved for in-task decision points
+- **`task_patterns.ts`** — 6 new patterns added: Analyzing an Unfamiliar Codebase, Making Multiple Changes to a File, HTTP API Integration, Git Branch Workflow, Environment/Config Investigation, Debugging Port/Process Issues
+
+### Other
+
+- `package.json` version bumped: `1.1.0` → `1.2.0`
+- `src/index.ts` `PKG_VERSION` updated to `1.2.0`
+- README completely rewritten: focused ~150-line reference with tool tables, usage examples, and project layout
+
+---
+
 ## [v1.1.0] — 2026-04-05
 
 ### Bug Fixes

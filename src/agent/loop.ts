@@ -20,8 +20,9 @@ export class ApexAgent {
   private abortRequested = false;
   private provider: OllamaProvider;
   private sessionMemory = new Map<string, string>();
-  /** Tracks consecutive turns with no tool calls — used to detect stalled model */
   private noToolStreak = 0;
+  /** Consecutive tool calls that returned errors — used to detect stuck loops */
+  private toolErrorStreak = 0;
 
   constructor(private config: AgentConfig) {
     this.provider = new OllamaProvider(config.ollamaUrl);
@@ -64,6 +65,7 @@ export class ApexAgent {
     };
 
     this.noToolStreak = 0;
+    this.toolErrorStreak = 0;
 
     while (state.iterations < this.config.maxIterations) {
       if (this.abortRequested) {
@@ -148,12 +150,12 @@ export class ApexAgent {
 
         // Nudge the model to continue using tools or signal completion
         this.emit({ type: 'status_change', status: 'thinking', message: 'Awaiting tool use...' });
+        const nudgeMsg = this.noToolStreak === 1
+          ? 'You responded with text but no tool calls. Continue the task using your available tools, or call task_complete if fully done and verified.'
+          : `You have not used any tools in the last ${this.noToolStreak} turns. You MUST call a tool now — use task_complete if the task is fully verified and done, or use the appropriate tool to continue working.`;
         state.messages.push({
           role: 'user',
-          content:
-            `You have not used any tools in the last ${this.noToolStreak} turn(s). ` +
-            'Continue working on the original task using your available tools. ' +
-            'If the task is fully done and verified, call task_complete with a clear summary.',
+          content: nudgeMsg,
         });
         continue;
       }
@@ -200,10 +202,24 @@ export class ApexAgent {
         );
 
         this.emit({ type: 'tool_result', result });
-        state.messages.push({
-          role: 'tool',
-          content: result.output,
-        });
+
+        // Track errors and inject a recovery hint so the model pivots strategies
+        if (result.error) {
+          this.toolErrorStreak++;
+          const hint = this.toolErrorStreak >= 2
+            ? `\n[AGENT HINT] ${this.toolErrorStreak} consecutive tool errors detected. Try a completely different approach or tool.`
+            : `\n[AGENT HINT] Tool "${call.name}" failed. Try with different arguments or use an alternative tool.`;
+          state.messages.push({
+            role: 'tool',
+            content: result.output + hint,
+          });
+        } else {
+          this.toolErrorStreak = 0;
+          state.messages.push({
+            role: 'tool',
+            content: result.output,
+          });
+        }
 
         // Check if task_complete was called
         if (result.output.startsWith(TASK_COMPLETE_SIGNAL)) {

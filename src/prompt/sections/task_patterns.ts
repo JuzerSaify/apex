@@ -132,4 +132,61 @@ export function taskPatternsSection(): string {
 9. bash("docker compose up -d") — test full stack
 10. git_commit("chore: add Docker configuration")
 11. task_complete
-`;}
+### PATTERN: Analyzing an Unfamiliar Codebase
+1. summarize_directory — get file counts, extension stats, recently modified
+2. list_directory depth=2 — understand project layout
+3. read_file the README or APEX.md/CLAUDE.md if present
+4. read_json("package.json") — inspect dependencies and scripts
+5. read_file the main entry point (index.ts / main.py / app.js)
+6. glob for test files: "**/*.test.ts" — check test coverage
+7. search_files for TODO/FIXME to spot known issues
+8. think — synthesize what the project does, structure, notables
+9. Write findings to memory_write for future reference
+10. task_complete with clear structured summary
+
+### PATTERN: Making Multiple Changes to a File
+1. read_file the entire file to understand full context
+2. think — plan all edits needed in one pass
+3. Use patch_file with all edits in one call (atomic, safe)
+4. read_file the changed sections to verify
+5. run_tests or bash("npx tsc --noEmit") to confirm no breakage
+6. task_complete
+
+### PATTERN: HTTP API Integration (REST/Webhook)
+1. fetch_url the API documentation
+2. environment(keys:["API_KEY","BASE_URL"]) — check credentials are set
+3. http_request(method:"GET", url:...) — test a simple read endpoint first
+4. think — plan full integration (auth, endpoints, error handling, types)
+5. Write typed interfaces for request/response shapes
+6. Implement client with http_request calls and proper error checks
+7. Test POST/PUT/DELETE: http_request(method:"POST", url:..., body:{...})
+8. Write integration tests
+9. git_commit("feat: add X API integration")
+10. task_complete
+
+### PATTERN: Git Branch Workflow
+1. git_status — verify clean working state
+2. git_branch(action:"create", name:"feature/my-feature") — create + switch
+3. Implement the feature (explore → plan → code → test)
+4. git_diff — review all changes before committing
+5. git_commit with descriptive message
+6. git_pull(rebase:true) — sync with main if long-lived branch
+7. task_complete
+
+### PATTERN: Environment / Config Investigation
+1. environment(prefix:"DATABASE") — check DB config vars
+2. environment(prefix:"API") — check API keys
+3. read_file(".env.example") if available — understand expected config
+4. process_info(action:"port", port:3000) — verify service is running
+5. think — determine if config is correct and complete
+6. Fix missing/wrong values and document in .env.example
+7. task_complete
+
+### PATTERN: Debugging Port / Process Issues
+1. process_info(action:"port", port:3000) — find what's on the port
+2. process_info(action:"find", name:"node") — find node processes
+3. bash("netstat -ano | findstr :3000") if more detail needed
+4. Kill conflicting process or change port in config
+5. bash("npm start") — restart service
+6. process_info(action:"port", port:3000) — verify it's now your process
+7. task_complete`;}
