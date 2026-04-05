@@ -1,4 +1,5 @@
 import type { Message, AgentConfig } from '../types/index.js';
+import { COMPRESS_THRESHOLD } from '../config/defaults.js';
 
 /** Estimate token count (rough: 1 token ≈ 4 chars) */
 export function estimateTokens(messages: Message[]): number {
@@ -15,7 +16,7 @@ export function estimateTokens(messages: Message[]): number {
 /** Check if context is above threshold and compression is needed */
 export function needsCompression(messages: Message[], config: AgentConfig): boolean {
   const tokens = estimateTokens(messages);
-  const threshold = config.contextWindow * 0.82;
+  const threshold = config.contextWindow * COMPRESS_THRESHOLD;
   return tokens > threshold;
 }
 

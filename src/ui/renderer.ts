@@ -1,4 +1,5 @@
 import boxen from 'boxen';
+import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import { theme } from './theme.js';
 import type { AgentEvent } from '../types/index.js';
@@ -10,16 +11,17 @@ const STATUS_CFG: Record<string, {
   icon: string; label: string;
   color: (s: string) => string;
   spin: SpinColor;
+  spinner: string;
 }> = {
-  thinking:     { icon: '◆', label: 'Thinking',    color: theme.accent,   spin: 'cyan'    },
-  planning:     { icon: '◈', label: 'Planning',    color: theme.brand,    spin: 'magenta' },
-  calling_tool: { icon: '⚙', label: 'Tools',       color: theme.warning,  spin: 'yellow'  },
-  observing:    { icon: '◎', label: 'Analyzing',   color: theme.info,     spin: 'blue'    },
-  compressing:  { icon: '⟳', label: 'Compressing', color: theme.muted,    spin: 'white'   },
-  complete:     { icon: '✓', label: 'Complete',    color: theme.success,  spin: 'green'   },
-  error:        { icon: '✗', label: 'Error',       color: theme.error,    spin: 'red'     },
-  aborted:      { icon: '⊘', label: 'Aborted',     color: theme.muted,    spin: 'white'   },
-  idle:         { icon: '◌', label: 'Idle',        color: theme.muted,    spin: 'white'   },
+  thinking:     { icon: '◆', label: 'Thinking',    color: theme.accent,   spin: 'cyan',    spinner: 'dots12'      },
+  planning:     { icon: '◈', label: 'Planning',    color: theme.brand,    spin: 'magenta', spinner: 'bouncingBar' },
+  calling_tool: { icon: '⚙', label: 'Tools',       color: theme.warning,  spin: 'yellow',  spinner: 'dots8Bit'    },
+  observing:    { icon: '◎', label: 'Analyzing',   color: theme.info,     spin: 'blue',    spinner: 'arc'         },
+  compressing:  { icon: '⟳', label: 'Compressing', color: theme.muted,    spin: 'white',   spinner: 'squish'      },
+  complete:     { icon: '✓', label: 'Complete',    color: theme.success,  spin: 'green',   spinner: 'dots2'       },
+  error:        { icon: '✗', label: 'Error',       color: theme.error,    spin: 'red',     spinner: 'dots2'       },
+  aborted:      { icon: '⊘', label: 'Aborted',     color: theme.muted,    spin: 'white',   spinner: 'dots2'       },
+  idle:         { icon: '◌', label: 'Idle',        color: theme.muted,    spin: 'white',   spinner: 'dots2'       },
 };
 
 const STATUS_HINTS: Record<string, string> = {
@@ -29,6 +31,9 @@ const STATUS_HINTS: Record<string, string> = {
   compressing:  'trimming context',
   calling_tool: 'invoking tools',
 };
+
+/** Compact gradient separator bar */
+const GRAD_SEP = chalk.hex('#7C3AED')('░') + chalk.hex('#4F46E5')('▒') + chalk.hex('#06B6D4')('▓') + chalk.hex('#0891B2')('█') + chalk.hex('#0E7490')('▓') + chalk.hex('#06B6D4')('▒') + chalk.hex('#7C3AED')('░');
 
 /** Handles all AgentEvent types — live spinner, per-tool timing, rich formatting */
 export class EventRenderer {
@@ -65,9 +70,9 @@ export class EventRenderer {
     }
   }
 
-  private startSpinner(text: string, color: SpinColor = 'cyan'): void {
+  private startSpinner(text: string, color: SpinColor = 'cyan', spinnerName = 'dots2'): void {
     this.stopSpinner();
-    this.spinner = ora({ text, spinner: 'dots2', color }).start();
+    this.spinner = ora({ text, spinner: spinnerName as never, color }).start();
   }
 
   private flushStream(): void {
@@ -89,18 +94,18 @@ export class EventRenderer {
     if (key === this.lastStatus) return;
     this.lastStatus = key;
 
-    const cfg  = STATUS_CFG[status] ?? { icon: '◆', label: status, color: theme.muted, spin: 'white' as SpinColor };
+    const cfg  = STATUS_CFG[status] ?? { icon: '◆', label: status, color: theme.muted, spin: 'white' as SpinColor, spinner: 'dots2' };
     const hint = message ?? STATUS_HINTS[status] ?? '';
     const iter = this.maxIter > 0 ? theme.dim(`  [${this.curIter}/${this.maxIter}]`) : '';
     const text = `${cfg.color(`${cfg.icon}  ${cfg.label.toUpperCase()}`)}${iter}  ${theme.dim(hint)}`;
 
-    this.startSpinner(text, cfg.spin);
+    this.startSpinner(text, cfg.spin, cfg.spinner);
   }
 
   private onToken(token: string): void {
     this.stopSpinner();
     if (!this.inStream) {
-      process.stdout.write(`\n  ${theme.muted('→')} `);
+      process.stdout.write(`\n  ${chalk.hex('#7C3AED')('▌')} `);
       this.inStream = true;
     }
     process.stdout.write(theme.value(token));
@@ -134,13 +139,12 @@ export class EventRenderer {
     this.stopSpinner();
     this.flushStream();
     this.lastStatus = '';
-    const sep = theme.dim('─'.repeat(44));
     console.log(`\n  ${theme.brand.bold('▸ Plan')}`);
-    console.log(`  ${sep}`);
+    console.log(`  ${GRAD_SEP}`);
     for (let i = 0; i < steps.length; i++) {
       console.log(`  ${theme.brand(`${String(i + 1).padStart(2)}.`)}  ${theme.value(steps[i])}`);
     }
-    console.log(`  ${sep}`);
+    console.log(`  ${GRAD_SEP}`);
   }
 
   private onToolCall(name: string, args: Record<string, unknown>): void {
@@ -149,7 +153,9 @@ export class EventRenderer {
     this.lastStatus = '';
     this.toolStartMs = Date.now();
 
-    console.log(`\n  ${theme.warning('⚙')}  ${theme.bold(name)}`);
+    const toolLabel = chalk.hex('#F59E0B').bold(`⚙  ${name}`);
+    const sep = theme.dim('─'.repeat(Math.min(name.length + 5, 44)));
+    console.log(`\n  ${toolLabel}\n  ${sep}`);
     for (const [k, v] of Object.entries(args)) {
       let val: string;
       if (typeof v === 'string') {
@@ -163,7 +169,7 @@ export class EventRenderer {
       console.log(`     ${theme.muted(k + ':')} ${theme.value(val)}`);
     }
     // Spinner while tool executes
-    this.startSpinner(theme.dim(`     running ${name}…`), 'yellow');
+    this.startSpinner(theme.dim(`     running ${name}…`), 'yellow', 'dots8Bit');
   }
 
   private onToolResult(name: string, output: string, error?: boolean): void {
@@ -216,7 +222,7 @@ export class EventRenderer {
       ? `${(totalMs / 1000).toFixed(1)}s`
       : `${Math.floor(totalMs / 60_000)}m ${Math.floor((totalMs % 60_000) / 1000)}s`;
 
-    const clean   = summary.replace(/^APEX_TASK_COMPLETE:\s*/i, '').trim();
+    const clean   = summary.replace(/^(APEX_TASK_COMPLETE|KEEPCODE_TASK_COMPLETE):?\s*/i, '').trim();
     const display = clean.length > 800 ? clean.slice(0, 800) + '\n  ' + theme.dim('… trimmed') : clean;
     const block   = display.split('\n').map((l) => `  ${l}`).join('\n');
 
@@ -227,13 +233,15 @@ export class EventRenderer {
       theme.accent(elapsed),
     ].join(theme.dim('  ·  '));
 
+    const title = chalk.hex('#10B981').bold('  ✓  Task Complete  ');
+
     console.log(
       '\n' +
       boxen(`${block}\n\n  ${stats}`, {
         padding: { top: 1, bottom: 1, left: 1, right: 1 },
         borderStyle: 'round',
         borderColor: '#10B981',
-        title: theme.success.bold('  ✓  Task Complete  '),
+        title,
         titleAlignment: 'center',
       })
     );

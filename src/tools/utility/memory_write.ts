@@ -42,7 +42,7 @@ registerTool({
       const section = `\n> (${timestamp})\n${content}\n`;
       if (current.includes(`## ${key}`)) {
         const updated = current.replace(
-          new RegExp(`(## ${key}[\\s\\S]*?)(?=## |$)`),
+          new RegExp(`(## ${key}[\\s\\S]*?)(?=\\n## |\\s*$)`),
           (m) => m.trim() + section + '\n'
         );
         await fs.writeFile(memPath, updated, 'utf8');
@@ -53,7 +53,7 @@ registerTool({
       const newSection = `## ${key}\n_Updated: ${timestamp}_\n\n${content}\n`;
       if (current.includes(`## ${key}`)) {
         const updated = current.replace(
-          new RegExp(`## ${key}[\\s\\S]*?(?=## |$)`),
+          new RegExp(`## ${key}[\\s\\S]*?(?=\\n## |\\s*$)`),
           newSection
         );
         await fs.writeFile(memPath, updated, 'utf8');

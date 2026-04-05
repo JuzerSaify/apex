@@ -3,13 +3,13 @@ import { Command, Option } from 'commander';
 import { ApexSession } from './ui/session.js';
 import type { AgentConfig } from './types/index.js';
 
-const PKG_VERSION = '1.2.0';
+const PKG_VERSION = '1.3.0';
 
 const program = new Command();
 
 program
-  .name('apex')
-  .description('Apex — autonomous coding agent powered by Ollama')
+  .name('keepcode')
+  .description('KeepCode — autonomous coding agent powered by Ollama')
   .version(PKG_VERSION, '-v, --version')
   .addOption(new Option('-m, --model <name>',        'Ollama model to use'))
   .addOption(new Option('-u, --url <url>',            'Ollama base URL').default('http://localhost:11434'))

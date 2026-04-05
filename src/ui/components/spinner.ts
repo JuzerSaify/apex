@@ -1,15 +1,32 @@
 import ora, { type Ora } from 'ora';
 import { theme } from '../theme.js';
 
+type Phase = 'thinking' | 'planning' | 'tools' | 'network' | 'compressing' | 'default';
+
+const PHASE_SPINNERS: Record<Phase, { spinner: string; color: 'magenta' | 'cyan' | 'yellow' | 'blue' | 'white' }> = {
+  thinking:    { spinner: 'dots12',       color: 'cyan'    },
+  planning:    { spinner: 'bouncingBar',  color: 'magenta' },
+  tools:       { spinner: 'dots8Bit',     color: 'yellow'  },
+  network:     { spinner: 'arc',          color: 'blue'    },
+  compressing: { spinner: 'squish',       color: 'white'   },
+  default:     { spinner: 'dots2',        color: 'magenta' },
+};
+
 export class Spinner {
   private ora: Ora;
 
-  constructor(text: string) {
+  constructor(text: string, phase: Phase = 'default') {
+    const cfg = PHASE_SPINNERS[phase];
     this.ora = ora({
       text,
-      spinner: 'dots',
-      color: 'magenta',
+      spinner: cfg.spinner as never,
+      color:   cfg.color,
     });
+  }
+
+  /** Create a Spinner tuned for the given agent phase */
+  static for(phase: Phase, text: string): Spinner {
+    return new Spinner(text, phase);
   }
 
   start(text?: string): this {
@@ -47,3 +64,4 @@ export class Spinner {
     this.ora.clear();
   }
 }
+

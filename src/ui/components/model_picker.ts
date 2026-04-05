@@ -1,4 +1,5 @@
 import readline from 'readline';
+import chalk from 'chalk';
 import { theme } from '../theme.js';
 
 export interface ModelChoice {
@@ -7,29 +8,57 @@ export interface ModelChoice {
   toolSupport: boolean;
 }
 
-/** Interactive keyboard-driven model picker */
+/** Track how many lines were printed so we can redraw in-place */
+function printLines(lines: string[]): void {
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+function clearPrinted(lineCount: number): void {
+  if (lineCount > 0) {
+    // Move cursor up lineCount rows then clear from cursor to end
+    process.stdout.write(`\x1B[${lineCount}A\x1B[J`);
+  }
+}
+
+/** Interactive keyboard-driven model picker (in-place, no full-screen clear) */
 export async function pickModel(models: ModelChoice[]): Promise<string> {
   if (models.length === 0) {
     throw new Error('No Ollama models available. Run: ollama pull <model>');
   }
 
   return new Promise((resolve) => {
-    let selected = 0;
+    let selected  = 0;
+    let lastLines = 0;
+
+    const buildLines = (): string[] => {
+      const header = [
+        '',
+        `  ${chalk.hex('#7C3AED').bold('KeepCode')} ${theme.dim('— select a model')}`,
+        `  ${theme.dim('─'.repeat(42))}`,
+      ];
+      const rows = models.map((m, i) => {
+        const active = i === selected;
+        const cursor = active ? chalk.hex('#7C3AED')('▶ ') : '  ';
+        const name   = active ? chalk.hex('#7C3AED').bold(m.name) : theme.muted(m.name);
+        const size   = theme.dim(` ${m.size}`);
+        const tools  = m.toolSupport
+          ? chalk.hex('#10B981')(' ✓ tools')
+          : theme.muted(' ✗ tools');
+        return `  ${cursor}${name}${size}${tools}`;
+      });
+      const footer = [
+        '',
+        `  ${theme.dim('↑↓ navigate   Enter select   q quit')}`,
+        '',
+      ];
+      return [...header, ...rows, ...footer];
+    };
 
     const render = () => {
-      // Clear previous lines
-      process.stdout.write('\x1B[2J\x1B[0f');
-
-      console.log(theme.brand.bold('\n  Select a model:\n'));
-      models.forEach((m, i) => {
-        const cursor = i === selected ? theme.brand('▶ ') : '  ';
-        const name   = i === selected ? theme.bold(m.name) : theme.muted(m.name);
-        const size   = theme.dim(` (${m.size})`);
-        const tools  = m.toolSupport ? theme.success(' ✓ tools') : theme.muted(' ✗ tools');
-        console.log(`  ${cursor}${name}${size}${tools}`);
-      });
-
-      console.log(theme.dim('\n  ↑↓ navigate  Enter select  q quit'));
+      const lines = buildLines();
+      clearPrinted(lastLines);
+      printLines(lines);
+      lastLines = lines.length;
     };
 
     render();
@@ -72,3 +101,4 @@ export async function pickModel(models: ModelChoice[]): Promise<string> {
     process.stdin.resume();
   });
 }
+

@@ -33,34 +33,39 @@ registerTool({
   },
   handler: async (args: Record<string, unknown>, config: AgentConfig) => {
     const command = String(args.command);
-    const cwd = args.cwd
-      ? String(args.cwd)
-      : config.workingDir;
+    const cwd = args.cwd ? String(args.cwd) : config.workingDir;
     const timeout = Math.min(Number(args.timeout_ms ?? BASH_TIMEOUT_MS), 300_000);
+
+    // On Windows, prefer PowerShell for better Unicode and cmdlet support
+    const isWindows = process.platform === 'win32';
+    const shellOpts = isWindows
+      ? { shell: 'powershell.exe', env: { ...process.env, NODE_NO_WARNINGS: '1' } }
+      : { env: { ...process.env, NODE_NO_WARNINGS: '1' } };
 
     try {
       const { stdout, stderr } = await execAsync(command, {
         cwd,
         timeout,
         maxBuffer: 5 * 1024 * 1024,
-        env: { ...process.env, NODE_NO_WARNINGS: '1' },
+        ...shellOpts,
       });
 
       const out = stdout.trim();
       const err = stderr.trim();
       const parts: string[] = [];
-      if (out) parts.push(`STDOUT:\n${out}`);
+      if (out) parts.push(out);
       if (err) parts.push(`STDERR:\n${err}`);
       return parts.join('\n\n') || '(no output)';
     } catch (e: unknown) {
-      const err = e as { stdout?: string; stderr?: string; message?: string; killed?: boolean };
+      const err = e as { stdout?: string; stderr?: string; message?: string; killed?: boolean; code?: number | string };
       if (err.killed) return `Error: Command timed out after ${timeout}ms`;
       const out = err.stdout?.trim();
       const stderr = err.stderr?.trim();
+      const exitCode = err.code !== undefined ? ` (exit ${err.code})` : '';
       const parts: string[] = [];
-      if (out) parts.push(`STDOUT:\n${out}`);
+      if (out) parts.push(out);
       if (stderr) parts.push(`STDERR:\n${stderr}`);
-      if (parts.length === 0) parts.push(`Error: ${err.message ?? 'unknown error'}`);
+      if (parts.length === 0) parts.push(`Error${exitCode}: ${err.message ?? 'unknown error'}`);
       return parts.join('\n\n');
     }
   },

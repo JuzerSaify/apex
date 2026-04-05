@@ -62,11 +62,19 @@ registerTool({
 
     let fileInclude: RegExp | null = null;
     if (args.file_pattern) {
-      const fp = String(args.file_pattern).replace('.', '\\.').replace('*', '.*');
+      const fp = String(args.file_pattern)
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
       fileInclude = new RegExp(`^${fp}$`, 'i');
     }
 
-    const stat = await fs.stat(searchPath);
+    let stat;
+    try {
+      stat = await fs.stat(searchPath);
+    } catch {
+      return `Error: Path not found: ${searchPath}`;
+    }
     const files = stat.isFile()
       ? [searchPath]
       : await walkFiles(searchPath, null, fileInclude);
@@ -82,13 +90,15 @@ registerTool({
       const lines = content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (regex.test(lines[i])) {
-          matches.push(`${file}:${i + 1}: ${lines[i].trim()}`);
+          const relPath = path.relative(config.workingDir, file);
+          matches.push(`${relPath}:${i + 1}: ${lines[i].trim()}`);
           if (matches.length >= maxResults) break outer;
         }
       }
     }
 
-    if (matches.length === 0) return `No matches for pattern "${args.pattern}".`;
-    return matches.join('\n');
+    if (matches.length === 0) return `No matches for "${args.pattern}"`;
+    const header = `${matches.length}${matches.length >= maxResults ? '+' : ''} match(es) for "${args.pattern}"\n`;
+    return header + matches.join('\n');
   },
 });

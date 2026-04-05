@@ -21,6 +21,8 @@ registerTool({
     },
   },
   handler: async (args: Record<string, unknown>, _config: AgentConfig) => {
-    return `Thought recorded: ${String(args.thought)}`;
+    const thought = String(args.thought).trim();
+    // Return cleanly so the renderer can display it as a thought block
+    return thought;
   },
 });

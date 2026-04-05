@@ -13,7 +13,7 @@ import { loadConfig, initConfig } from '../config/loader.js';
 import { DEFAULT_CONFIG } from '../config/defaults.js';
 import type { AgentConfig, Message } from '../types/index.js';
 
-const PACKAGE_VERSION = '1.0.0';
+const PACKAGE_VERSION = '1.3.0';
 
 /** Commands available in the REPL */
 const COMMANDS: Record<string, string> = {
@@ -23,7 +23,7 @@ const COMMANDS: Record<string, string> = {
   '/clear':        'Clear conversation history',
   '/history':      'Show conversation history summary',
   '/status':       'Show current session config',
-  '/exit':         'Exit Apex',
+  '/exit':         'Exit KeepCode',
 };
 
 export class ApexSession {
@@ -161,7 +161,7 @@ export class ApexSession {
           console.log(`\n  ${theme.label('History')} — ${turns} turn${turns !== 1 ? 's' : ''}`);
           for (let i = 0; i < this.history.length; i++) {
             const msg   = this.history[i];
-            const icon  = msg.role === 'user' ? theme.brand('You  ') : theme.accent('Apex ');
+            const icon  = msg.role === 'user' ? theme.brand('You      ') : theme.accent('KeepCode ');
             const preview = (typeof msg.content === 'string' ? msg.content : '[complex]').slice(0, 100);
             console.log(`  ${icon}  ${theme.muted(preview)}${preview.length >= 100 ? theme.dim('…') : ''}`);
           }

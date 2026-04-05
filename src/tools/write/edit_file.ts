@@ -44,8 +44,13 @@ registerTool({
     const updated = original.replace(oldStr, newStr);
     await fs.writeFile(filePath, updated, 'utf8');
 
-    const addedLines = newStr.split('\n').length - oldStr.split('\n').length;
-    const sign = addedLines >= 0 ? '+' : '';
-    return `Edited ${filePath} (${sign}${addedLines} lines)`;
+    const addedLines   = newStr.split('\n').length;
+    const removedLines = oldStr.split('\n').length;
+    const delta        = addedLines - removedLines;
+    const sign         = delta >= 0 ? '+' : '';
+    const summary      = delta === 0
+      ? `${removedLines} line(s) replaced`
+      : `${sign}${delta} lines (${removedLines} removed → ${addedLines} added)`;
+    return `Edited ${path.relative(config.workingDir, filePath)}: ${summary}`;
   },
 });

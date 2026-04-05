@@ -19,9 +19,10 @@ function scoreRun(state: AgentState): number {
 function extractToolsUsed(state: AgentState): string[] {
   const toolNames = new Set<string>();
   for (const msg of state.messages) {
-    if (typeof msg.content === 'string') {
-      const matches = msg.content.match(/calling tool: (\w+)/gi) ?? [];
-      matches.forEach((m) => toolNames.add(m.split(': ')[1]));
+    if (msg.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
+        if (tc.function?.name) toolNames.add(tc.function.name);
+      }
     }
   }
   return Array.from(toolNames);

@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 
-/** Apex brand color palette */
+/** KeepCode brand color palette */
 export const theme = {
-  brand:   chalk.hex('#7C3AED'),        // purple — Apex brand
+  brand:   chalk.hex('#7C3AED'),        // purple — KeepCode brand
   accent:  chalk.hex('#06B6D4'),        // cyan — accents
   success: chalk.hex('#10B981'),        // green
   warning: chalk.hex('#F59E0B'),        // amber

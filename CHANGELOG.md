@@ -1,10 +1,128 @@
 # Changelog
 
-All notable changes to Apex are documented here.
+All notable changes to KeepCode are documented here.
+
+---
+
+## [v1.3.0] — 2025-06-01
+
+### Rebrand: Apex → KeepCode
+
+- **CLI command** renamed: `apex` → `keepcode`
+- **Package name** renamed: `apex` → `keepcode`
+- All UI strings, banners, identity prompt, and in-REPL messages updated to "KeepCode"
+- **New ASCII banner** — two-block stacked "KEEP / CODE" logo with purple→cyan gradient
+
+### Bug Fixes
+
+- **`src/agent/compressor.ts`** — `needsCompression()` was hardcoding `0.82` instead of importing and using the `COMPRESS_THRESHOLD` constant from `defaults.ts`. Context compression triggered at wrong threshold.
+- **`src/tools/read/search_files.ts`** — `args.file_pattern` used `String.replace('.', '\\.')` (no regex flag) which only replaced the *first* occurrence. Patterns like `*.test.ts` with multiple dots broke silently. Fixed with global regex flags: `/\./g`, `/\*/g`, `/\?/g`.
+- **`src/agent/trainer.ts`** — `extractToolsUsed()` used regex matching on `msg.content` looking for `"calling tool: ..."` text that never appears. Always returned an empty array. Rewritten to read `msg.tool_calls` array directly.
+- **`src/tools/utility/memory_write.ts`** — Section-replacement regex used `$` (end-of-line in multiline mode) instead of `\s*$` (end-of-string). Replacing the last section in a memory file failed silently.
+- **`src/ui/session.ts`** — `PACKAGE_VERSION` was stale at `'1.0.0'`. Updated to `'1.3.0'`.
+- **`src/ui/components/model_picker.ts`** — Used `\x1B[2J\x1B[0f` (clear entire terminal including scrollback). Replaced with cursor-up + clear-from-cursor (`\x1B[nA\x1B[J`) for in-place redraws.
+
+### Tool Improvements
+
+- **`src/tools/execute/bash.ts`**
+  - Auto-detects Windows and uses `powershell.exe` as the shell (no more cmd.exe failures for PowerShell commands)
+  - Removed noisy `"STDOUT:\n"` prefix from output
+  - Error messages now include the exit code, e.g. `Command failed (exit 1): ...`
+
+- **`src/tools/write/edit_file.ts`**
+  - Return message now shows a diff summary: `Edited path/to/file.ts: +3 lines (5 removed → 8 added)`
+
+- **`src/tools/utility/think.ts`**
+  - Returns the thought text directly rather than the verbose `"Thought recorded: ..."` prefix
+
+- **`src/tools/read/search_files.ts`**
+  - Outputs relative paths (relative to `workingDir`) instead of absolute paths
+  - Adds a count header: `N match(es) for "pattern"`
+  - Gracefully handles `stat()` errors (path not found) instead of throwing
+
+### Premium CLI UI
+
+- **`src/ui/components/spinner.ts`** — New `Spinner.for(phase, text)` factory; each agent phase (`thinking`, `planning`, `tools`, `network`, `compressing`) gets its own spinner style (`dots12`, `bouncingBar`, `dots8Bit`, `arc`, `squish`)
+- **`src/ui/renderer.ts`**
+  - Each status type carries a `spinner` field — the correct ora spinner is used per agent phase
+  - Token streaming uses a purple block cursor `▌` instead of plain `→`
+  - `onToolCall` displays a styled separator line under the tool name
+  - `onPlan` uses a gradient separator bar (░▒▓█▓▒░) instead of plain dashes
+  - `onComplete` title/box uses `chalk.hex` for the success green instead of `theme.success` chain
+  - `onComplete` strips both `APEX_TASK_COMPLETE` and `KEEPCODE_TASK_COMPLETE` prefixes
+- **`src/ui/components/model_picker.ts`**
+  - In-place redraw: no more full-screen wipe
+  - KeepCode branded header
+  - Cleaner layout with dim separator line
+
+### Prompt & Identity
+
+- **`src/prompt/sections/identity.ts`** — Updated to KEEPCODE v1.3.0; added Memory principle: use `memory_read` at session start and `memory_write` to persist cross-session insights
+
+### New Files
+
+- **`COMPARISON.md`** — Feature matrix and agentic benchmark table comparing KeepCode vs Claude Code, Codex CLI, Aider, and Continue
+
+### Package
+
+- `package.json` version: `1.2.0` → `1.3.0`
+- `src/index.ts` `PKG_VERSION`: `1.2.0` → `1.3.0`
 
 ---
 
 ## [v1.2.0] — 2026-04-07
+
+### New Tools (16 registrations across 14 files)
+
+**Read**
+- `read_lines` — read multiple non-contiguous line ranges in a single call (more efficient than chained `read_file` calls)
+- `read_json` — read a JSON file with optional dot-path query (`"scripts.build"` → returns just that value)
+- `list_files` — flat recursive file listing with optional extension filter; skips `node_modules`, `.git`, `dist`
+- `summarize_directory` — directory statistics: file count by extension, total size, top-10 recently modified
+
+**Write**
+- `patch_file` — atomically apply N find-and-replace edits to one file in a single call
+- `append_file` — append content to a file (creates if absent); optional newline separator
+- `regex_replace` — regex-pattern find-and-replace across an entire file with flags support
+- `write_json` — write a JSON file or update a single key without overwriting the rest (`set_key` mode)
+
+**Network**
+- `http_request` — full HTTP client supporting POST/PUT/PATCH/DELETE/HEAD with custom headers and JSON body auto-detection
+
+**Git**
+- `git_stash` — push, pop, list, apply, drop stash entries
+- `git_branch` — list, create, switch, delete branches
+- `git_pull` — pull from remote with optional rebase
+
+**Utility**
+- `plan` — render a structured execution plan (goal, ordered steps, success criteria, risks)
+- `diff_files` — LCS-based unified diff between two files or a file vs. a proposed string
+- `environment` — read environment variables with prefix filtering and automatic secret redaction
+- `process_info` — inspect running processes and port usage (cross-platform: Windows + Unix)
+
+### Agent Improvements
+
+- **Tool error recovery** — when a tool call returns an error, the agent now injects an explicit recovery hint into the model's message history, prompting it to try a different approach or tool instead of silently retrying the same operation
+- **Consecutive error detection** — after 2+ consecutive tool failures, a stronger escalation hint is injected: "Try a completely different approach"
+- **Improved stall-detection nudge** — turn 1 stall gets a gentle reminder; turn 2+ stall gets an imperative directive to call a tool or `task_complete`
+- **`plan` tool support in loop** — the `plan` tool now renders a visible execution plan to the user at the start of complex tasks
+
+### Prompt Enhancements
+
+- **`identity.ts`** — version bumped to v1.2.0; complete tool inventory across 7 categories; tightened core principles
+- **`tools_guide.ts`** — rewritten with documentation for all 38 tools; organized by category with usage patterns and rules
+- **`principles.ts`** — principle 3 updated: `plan` is now explicitly required before multi-step tasks; `think` reserved for in-task decision points
+- **`task_patterns.ts`** — 6 new patterns added: Analyzing an Unfamiliar Codebase, Making Multiple Changes to a File, HTTP API Integration, Git Branch Workflow, Environment/Config Investigation, Debugging Port/Process Issues
+
+### Other
+
+- `package.json` version bumped: `1.1.0` → `1.2.0`
+- `src/index.ts` `PKG_VERSION` updated to `1.2.0`
+- README completely rewritten: focused ~150-line reference with tool tables, usage examples, and project layout
+
+---
+
+## [v1.1.0] — 2026-04-05
 
 ### New Tools (16 registrations across 14 files)
 
