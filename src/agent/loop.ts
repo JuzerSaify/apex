@@ -155,6 +155,17 @@ export class KeepCodeAgent {
           break;
         }
 
+        // First no-tool turn on a short/conversational task → complete immediately
+        // (avoids 3-iteration loop for greetings and simple questions)
+        const taskIsConversational = userTask.trim().length < 80 &&
+          !/\b(fix|create|write|update|add|delete|remove|refactor|build|run|test|check|find|edit|make|implement|generate)\b/i.test(userTask);
+        if (this.noToolStreak === 1 && taskIsConversational) {
+          state.status = 'complete';
+          state.result = assistantContent;
+          this.emit({ type: 'complete', summary: assistantContent, state });
+          break;
+        }
+
         // Model stalled: 3 textual turns in a row with no tools → nudge once more then exit
         if (this.noToolStreak >= 3) {
           state.status = 'complete';

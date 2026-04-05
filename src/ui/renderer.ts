@@ -180,6 +180,8 @@ export class EventRenderer {
   private maxIter = 0;
   private totalIn  = 0;
   private totalOut = 0;
+  /** Track last thought content to avoid repeating it in the complete box */
+  private lastThoughtContent = '';
 
   handle(event: AgentEvent): void {
     switch (event.type) {
@@ -256,6 +258,7 @@ export class EventRenderer {
     this.stopSpinner();
     this.flushStream();
     this.lastStatus = '';
+    this.lastThoughtContent = content.trim();
     console.log();
     renderMd(content);
   }
@@ -372,8 +375,12 @@ export class EventRenderer {
 
     const clean = (summary ?? '').replace(/^(APEX_TASK_COMPLETE|KEEPCODE_TASK_COMPLETE):?\s*/i, '').trim();
 
+    // If this content was already shown via onThought, skip repeating it in the box
+    const alreadyShown = clean === this.lastThoughtContent;
+    this.lastThoughtContent = ''; // reset for next run
+
     // Render summary with inline markdown — full content, no truncation
-    const block = clean
+    const block = (!alreadyShown && clean)
       ? clean.split('\n').map((l) => {
           if (l.trim() === '') return '';
           const ri = l
