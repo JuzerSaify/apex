@@ -21,7 +21,7 @@ program
   .command('run', { isDefault: true })
   .description('Start interactive coding session (default command)')
   .addOption(new Option('-m, --model <name>',          'Model to use'))
-  .addOption(new Option('-p, --provider <name>',       'AI provider: openai|anthropic|deepseek|ollama').choices(['openai', 'anthropic', 'deepseek', 'ollama']))
+  .addOption(new Option('-p, --provider <name>',       'AI provider: openai|anthropic|deepseek|gemini|ollama').choices(['openai', 'anthropic', 'deepseek', 'gemini', 'ollama']))
   .addOption(new Option('-k, --api-key <key>',         'API key (or set OPENAI_API_KEY / ANTHROPIC_API_KEY)'))
   .addOption(new Option('    --api-base <url>',        'Custom API base URL (for Ollama or custom endpoints)'))
   .addOption(new Option('-t, --temperature <float>',   'Sampling temperature (0-2)').default(0.7))
@@ -34,11 +34,13 @@ program
   .addOption(new Option('    --auto-model',            'Auto-pick the best available model'))
   .addOption(new Option('-r, --run <task>',            'Run a single task then exit'))
   .action(async (opts) => {
-    // API key resolution: flag → env var
+    // API key resolution: flag → env var (provider-aware)
     const apiKey = opts.apiKey
       ?? process.env.OPENAI_API_KEY
       ?? process.env.ANTHROPIC_API_KEY
-      ?? process.env.DEEPSEEK_API_KEY;
+      ?? process.env.DEEPSEEK_API_KEY
+      ?? process.env.GOOGLE_API_KEY
+      ?? process.env.GEMINI_API_KEY;
 
     const flags: Partial<AgentConfig> & { autoModel?: boolean } = {
       model:         opts.model,

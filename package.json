@@ -1,6 +1,6 @@
 {
   "name": "keepcode",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "KeepCode - Autonomous AI coding agent (OpenAI · Anthropic · DeepSeek · Ollama)",
   "main": "dist/index.js",
   "bin": {

@@ -13,6 +13,7 @@ export type AgentEventType =
   | 'complete'
   | 'abort'
   | 'iteration_start'
+  | 'token_usage'
   | 'training_insight';
 
 export interface StatusChangeEvent {
@@ -79,6 +80,16 @@ export interface TrainingInsightEvent {
   insight: string;
 }
 
+/** Emitted after each LLM call with per-turn and running totals */
+export interface TokenUsageEvent {
+  type: 'token_usage';
+  iteration: number;
+  inputTokens:       number;   // this turn's input tokens
+  outputTokens:      number;   // this turn's output tokens
+  totalInputTokens:  number;   // cumulative for the run
+  totalOutputTokens: number;   // cumulative for the run
+}
+
 export type AgentEvent =
   | StatusChangeEvent
   | TokenEvent
@@ -91,6 +102,7 @@ export type AgentEvent =
   | CompleteEvent
   | AbortEvent
   | IterationStartEvent
+  | TokenUsageEvent
   | TrainingInsightEvent;
 
 export type EventListener = (event: AgentEvent) => void;

@@ -140,14 +140,36 @@ export class AnthropicProvider implements IProvider {
   }
 
   async fetchModels(): Promise<ModelInfo[]> {
+    try {
+      const resp = await fetch(`${ANTHROPIC_API_URL}/models`, {
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': ANTHROPIC_VERSION,
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (resp.ok) {
+        const data = await resp.json() as { data: Array<{ id: string; display_name: string }> };
+        const models = (data.data ?? []).map((m) => ({
+          name: m.id,
+          displayName: m.display_name,
+          supportsTools: true,
+        }));
+        if (models.length > 0) return models;
+      }
+    } catch { /* fall through to static list */ }
+    return this.staticModels();
+  }
+
+  private staticModels(): ModelInfo[] {
     return [
-      { name: 'claude-opus-4-5', displayName: 'Claude Opus 4.5', supportsTools: true },
-      { name: 'claude-sonnet-4-5', displayName: 'Claude Sonnet 4.5', supportsTools: true },
-      { name: 'claude-haiku-3-5', displayName: 'Claude Haiku 3.5', supportsTools: true },
-      { name: 'claude-3-7-sonnet-20250219', displayName: 'Claude 3.7 Sonnet', supportsTools: true },
-      { name: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet', supportsTools: true },
-      { name: 'claude-3-5-haiku-20241022', displayName: 'Claude 3.5 Haiku', supportsTools: true },
-      { name: 'claude-3-opus-20240229', displayName: 'Claude 3 Opus', supportsTools: true },
+      { name: 'claude-opus-4-5',            displayName: 'Claude Opus 4.5',     supportsTools: true },
+      { name: 'claude-sonnet-4-5',           displayName: 'Claude Sonnet 4.5',   supportsTools: true },
+      { name: 'claude-haiku-3-5',            displayName: 'Claude Haiku 3.5',    supportsTools: true },
+      { name: 'claude-3-7-sonnet-20250219',  displayName: 'Claude 3.7 Sonnet',   supportsTools: true },
+      { name: 'claude-3-5-sonnet-20241022',  displayName: 'Claude 3.5 Sonnet',   supportsTools: true },
+      { name: 'claude-3-5-haiku-20241022',   displayName: 'Claude 3.5 Haiku',    supportsTools: true },
+      { name: 'claude-3-opus-20240229',      displayName: 'Claude 3 Opus',       supportsTools: true },
     ];
   }
 

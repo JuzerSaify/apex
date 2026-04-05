@@ -17,11 +17,10 @@ export const DEFAULT_CONFIG: Omit<AgentConfig, 'sessionId'> = {
 export const OPENAI_BASE_URL    = 'https://api.openai.com/v1';
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
 export const DEEPSEEK_BASE_URL  = 'https://api.deepseek.com/v1';
+export const GEMINI_BASE_URL    = 'https://generativelanguage.googleapis.com/v1beta';
 export const OLLAMA_BASE_URL    = 'http://localhost:11434';
 
 export const KEEPCODE_DIR = '.keepcode';
-/** @deprecated use KEEPCODE_DIR */
-export const APEX_DIR = KEEPCODE_DIR;
 export const MEMORY_FILE = '.keepcode/memory.md';
 export const TRAINING_FILE = '.keepcode/training/insights.json';
 export const CHECKPOINTS_DIR = '.keepcode/checkpoints';

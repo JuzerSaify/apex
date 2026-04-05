@@ -66,6 +66,7 @@ export class KeepCodeAgent {
       toolCallCount: 0,
       startTime: Date.now(),
       tokenCount: 0,
+      inputTokenCount: 0,
     };
 
     this.noToolStreak = 0;
@@ -110,11 +111,21 @@ export class KeepCodeAgent {
             this.config,
             (token) => this.emit({ type: 'token', token })
           );
-          state.tokenCount += response.outputTokens;
         } else {
           response = await this.provider.chat(state.messages, tools, this.config);
-          state.tokenCount += response.outputTokens;
         }
+
+        // Real-time token accounting — track both input and output per turn
+        state.inputTokenCount += response.inputTokens;
+        state.tokenCount      += response.outputTokens;
+        this.emit({
+          type:              'token_usage',
+          iteration:         state.iterations,
+          inputTokens:       response.inputTokens,
+          outputTokens:      response.outputTokens,
+          totalInputTokens:  state.inputTokenCount,
+          totalOutputTokens: state.tokenCount,
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         state.status = 'error';

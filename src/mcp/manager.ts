@@ -17,6 +17,9 @@ import { KEEPCODE_DIR } from '../config/defaults.js';
 
 const MCP_CONFIG_FILE = 'mcp.json';
 
+/** Maximum concurrent MCP server connections. Servers beyond this limit are skipped. */
+export const MAX_MCP_SERVERS = 10;
+
 const activeClients = new Map<string, MCPClient>();
 
 export async function loadMCPServers(workingDir: string): Promise<void> {
@@ -30,7 +33,13 @@ export async function loadMCPServers(workingDir: string): Promise<void> {
     return; // no MCP config — silently skip
   }
 
-  for (const server of servers) {
+  const enabled = servers.filter((s) => s.enabled !== false);
+  if (enabled.length > MAX_MCP_SERVERS) {
+    console.warn(`  ⚠ MCP: ${enabled.length} servers configured; loading first ${MAX_MCP_SERVERS}`);
+  }
+  const toLoad = enabled.slice(0, MAX_MCP_SERVERS);
+
+  for (const server of toLoad) {
     if (!server.name || !server.transport) continue;
     try {
       const client = new MCPClient(server);

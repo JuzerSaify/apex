@@ -126,13 +126,62 @@ export class OpenAIProvider implements IProvider {
     try {
       const resp = await fetch(`${this.baseUrl}/models`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(8000),
       });
-      if (!resp.ok) return [];
+      if (!resp.ok) return this.staticModels();
       const data = await resp.json() as { data: Array<{ id: string }> };
-      return data.data.map((m) => ({ name: m.id, supportsTools: true }));
+      const PREFER_ORDER = ['gpt-4o', 'o4', 'o3', 'o1', 'gpt-4', 'gpt-3'];
+      const META: Record<string, { displayName: string; context: number }> = {
+        'gpt-4o':                { displayName: 'GPT-4o',              context: 128000  },
+        'gpt-4o-mini':           { displayName: 'GPT-4o Mini',         context: 128000  },
+        'o1':                    { displayName: 'o1',                  context: 200000  },
+        'o1-mini':               { displayName: 'o1 mini',             context: 131072  },
+        'o1-preview':            { displayName: 'o1 Preview',          context: 128000  },
+        'o3':                    { displayName: 'o3',                  context: 200000  },
+        'o3-mini':               { displayName: 'o3 mini',             context: 200000  },
+        'o4-mini':               { displayName: 'o4 mini',             context: 200000  },
+        'gpt-4-turbo':           { displayName: 'GPT-4 Turbo',         context: 128000  },
+        'gpt-4-turbo-preview':   { displayName: 'GPT-4 Turbo Preview', context: 128000  },
+        'gpt-4-0125-preview':    { displayName: 'GPT-4 (0125)',        context: 128000  },
+        'gpt-3.5-turbo':         { displayName: 'GPT-3.5 Turbo',       context: 16385   },
+        'gpt-3.5-turbo-0125':    { displayName: 'GPT-3.5 Turbo (0125)',context: 16385   },
+      };
+      const getScore = (id: string) => {
+        for (let i = 0; i < PREFER_ORDER.length; i++) {
+          if (id.startsWith(PREFER_ORDER[i])) return i;
+        }
+        return PREFER_ORDER.length;
+      };
+      const chat = data.data
+        .filter(({ id }) =>
+          /^gpt-|^o[134]/.test(id) && !id.includes('instruct') && !id.includes('realtime')
+        )
+        .sort((a, b) => getScore(a.id) - getScore(b.id))
+        .map(({ id }) => {
+          const m = META[id];
+          return {
+            name: id,
+            displayName: m?.displayName ?? id,
+            contextLength: m?.context,
+            supportsTools: true,
+          };
+        });
+      return chat.length > 0 ? chat : this.staticModels();
     } catch {
-      return [];
+      return this.staticModels();
     }
+  }
+
+  private staticModels(): ModelInfo[] {
+    return [
+      { name: 'gpt-4o',           displayName: 'GPT-4o',      contextLength: 128000, supportsTools: true },
+      { name: 'gpt-4o-mini',      displayName: 'GPT-4o Mini', contextLength: 128000, supportsTools: true },
+      { name: 'o4-mini',          displayName: 'o4 mini',     contextLength: 200000, supportsTools: true },
+      { name: 'o3',               displayName: 'o3',          contextLength: 200000, supportsTools: true },
+      { name: 'o1',               displayName: 'o1',          contextLength: 200000, supportsTools: true },
+      { name: 'gpt-4-turbo',      displayName: 'GPT-4 Turbo', contextLength: 128000, supportsTools: true },
+      { name: 'gpt-3.5-turbo',    displayName: 'GPT-3.5 Turbo', contextLength: 16385, supportsTools: true },
+    ];
   }
 
   async chat(

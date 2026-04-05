@@ -28,7 +28,7 @@ export type AgentStatus =
   | 'error'
   | 'aborted';
 
-export type AIProvider = 'ollama' | 'openai' | 'anthropic' | 'deepseek';
+export type AIProvider = 'ollama' | 'openai' | 'anthropic' | 'deepseek' | 'gemini';
 
 export interface AgentConfig {
   model: string;
@@ -56,7 +56,10 @@ export interface AgentState {
   messages: Message[];
   toolCallCount: number;
   startTime: number;
+  /** Cumulative output tokens across all LLM calls in this run */
   tokenCount: number;
+  /** Cumulative input (prompt) tokens across all LLM calls in this run */
+  inputTokenCount: number;
   error?: string;
   result?: string;
   plan?: string[];

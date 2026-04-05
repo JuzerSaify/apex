@@ -15,6 +15,8 @@ export interface ModelInfo {
   displayName?: string;
   size?: number;
   supportsTools?: boolean;
+  /** Context window in tokens (if known) */
+  contextLength?: number;
 }
 
 // ── Unified provider interface ─────────────────────────────────────────────

@@ -45,6 +45,8 @@ export class EventRenderer {
   private runStartMs = Date.now();
   private curIter = 0;
   private maxIter = 0;
+  private totalIn  = 0;
+  private totalOut = 0;
 
   handle(event: AgentEvent): void {
     switch (event.type) {
@@ -56,9 +58,10 @@ export class EventRenderer {
       case 'tool_result':     this.onToolResult(event.result.name, event.result.output, event.result.error); break;
       case 'compress':        this.onCompress(event.fromTokens, event.toTokens); break;
       case 'error':           this.onError(event.message, event.recoverable); break;
-      case 'complete':        this.onComplete(event.summary, event.state.iterations, event.state.toolCallCount, event.state.tokenCount); break;
+      case 'complete':        this.onComplete(event.summary, event.state.iterations, event.state.toolCallCount, event.state.tokenCount, event.state.inputTokenCount); break;
       case 'abort':           this.onAbort(); break;
       case 'iteration_start': this.onIteration(event.iteration, event.maxIterations); break;
+      case 'token_usage':     this.onTokenUsage(event.totalInputTokens, event.totalOutputTokens); break;
       case 'training_insight':this.onInsight(event.insight); break;
     }
   }
@@ -212,7 +215,7 @@ export class EventRenderer {
     console.log(`\n${prefix}\n  ${theme.error(message)}\n`);
   }
 
-  private onComplete(summary: string, iterations: number, toolCalls: number, tokenCount: number): void {
+  private onComplete(summary: string, iterations: number, toolCalls: number, tokenCount: number, inputTokenCount = 0): void {
     this.stopSpinner();
     this.flushStream();
     this.lastStatus = '';
@@ -229,7 +232,7 @@ export class EventRenderer {
     const stats = [
       theme.muted(`${iterations} iter${iterations !== 1 ? 's' : ''}`),
       theme.muted(`${toolCalls} tool call${toolCalls !== 1 ? 's' : ''}`),
-      theme.muted(`~${tokenCount.toLocaleString()} tokens`),
+      theme.muted(`↑${inputTokenCount.toLocaleString()} in  ↓${tokenCount.toLocaleString()} out`),
       theme.accent(elapsed),
     ].join(theme.dim('  ·  '));
 
@@ -260,6 +263,17 @@ export class EventRenderer {
     this.curIter = n;
     this.maxIter = max;
     this.lastStatus = ''; // Re-allow same status to re-render with updated iter
+  }
+
+  private onTokenUsage(totalIn: number, totalOut: number): void {
+    this.totalIn  = totalIn;
+    this.totalOut = totalOut;
+    // Update spinner text with live token counts if spinning
+    if (this.spinner?.isSpinning) {
+      const tokenLabel = theme.dim(`  │ ↑${totalIn.toLocaleString()} ↓${totalOut.toLocaleString()} tok`);
+      // Refresh spinner text without restarting
+      this.spinner.text = this.spinner.text.replace(/ *│ [↑↓].*tok$/, '') + tokenLabel;
+    }
   }
 
   private onInsight(insight: string): void {
