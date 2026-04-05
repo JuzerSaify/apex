@@ -1,31 +1,33 @@
 import { buildSystemPrompt } from '../prompt/builder.js';
-import { OllamaProvider } from '../providers/ollama/index.js';
+import { createProvider } from '../providers/factory.js';
 import { executeTool, promptApproval } from '../tools/executor.js';
 import { getToolDefinitions } from '../tools/registry.js';
 import { TASK_COMPLETE_SIGNAL } from '../tools/utility/task_complete.js';
 import { needsCompression, compressMessages, estimateTokens } from './compressor.js';
 import { recordRun, deriveInsights } from './trainer.js';
 import { initDirs } from './memory.js';
+import { getMCPToolDefinitions, callMCPTool, isMCPTool } from '../mcp/manager.js';
+import { saveSessionToCloud } from '../db/sync.js';
 import type {
   AgentConfig,
   AgentState,
   Message,
-  ToolCall,
   AgentEvent,
   EventListener,
+  IProvider,
 } from '../types/index.js';
 
 export class KeepCodeAgent {
   private listeners: EventListener[] = [];
   private abortRequested = false;
-  private provider: OllamaProvider;
+  private provider: IProvider;
   private sessionMemory = new Map<string, string>();
   private noToolStreak = 0;
   /** Consecutive tool calls that returned errors — used to detect stuck loops */
   private toolErrorStreak = 0;
 
   constructor(private config: AgentConfig) {
-    this.provider = new OllamaProvider(config.ollamaUrl);
+    this.provider = createProvider(config);
   }
 
   on(listener: EventListener): () => void {
@@ -49,7 +51,9 @@ export class KeepCodeAgent {
     await initDirs(this.config.workingDir);
 
     const systemPrompt = await buildSystemPrompt(this.config, userTask);
-    const tools = getToolDefinitions();
+    // Merge local tools + any connected MCP tools
+    const mcpToolDefs = await getMCPToolDefinitions().catch(() => []);
+    const tools = [...getToolDefinitions(), ...mcpToolDefs];
 
     const state: AgentState = {
       status: 'thinking',
@@ -106,10 +110,10 @@ export class KeepCodeAgent {
             this.config,
             (token) => this.emit({ type: 'token', token })
           );
-          state.tokenCount += response.eval_count ?? 0;
+          state.tokenCount += response.outputTokens;
         } else {
           response = await this.provider.chat(state.messages, tools, this.config);
-          state.tokenCount += response.eval_count ?? 0;
+          state.tokenCount += response.outputTokens;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -119,8 +123,8 @@ export class KeepCodeAgent {
         break;
       }
 
-      const assistantContent = response.message.content ?? '';
-      const toolCalls = this.provider.parseToolCalls(response);
+      const assistantContent = response.content ?? '';
+      const toolCalls = response.toolCalls;
 
       // Emit thought if there's a text response
       if (assistantContent.trim()) {
@@ -195,11 +199,22 @@ export class KeepCodeAgent {
         this.emit({ type: 'tool_call', call });
         state.toolCallCount++;
 
-        const result = await executeTool(
-          call,
-          this.config,
-          this.config.autoApprove ? undefined : promptApproval
-        );
+        // Route to MCP if the tool belongs to a connected MCP server
+        let result: { output: string; error?: boolean; tool_call_id: string; name: string };
+        if (isMCPTool(call.name)) {
+          try {
+            const mcpOut = await callMCPTool(call.name, call.arguments);
+            result = { tool_call_id: call.id, name: call.name, output: mcpOut ?? 'MCP tool returned no output' };
+          } catch (err) {
+            result = { tool_call_id: call.id, name: call.name, output: String(err), error: true };
+          }
+        } else {
+          result = await executeTool(
+            call,
+            this.config,
+            this.config.autoApprove ? undefined : promptApproval
+          );
+        }
 
         this.emit({ type: 'tool_result', result });
 
@@ -231,6 +246,19 @@ export class KeepCodeAgent {
           // Record training data asynchronously
           const insights = deriveInsights(state, userTask);
           recordRun(this.config, userTask, state, insights).catch(() => {});
+          // Sync session to Supabase cloud (best-effort)
+          saveSessionToCloud({
+            sessionId:  this.config.sessionId,
+            task:       userTask,
+            model:      this.config.model,
+            provider:   this.config.provider,
+            status:     'complete',
+            result:     summary,
+            iterations: state.iterations,
+            toolCalls:  state.toolCallCount,
+            tokenCount: state.tokenCount,
+            durationMs: Date.now() - state.startTime,
+          }).catch(() => {});
           return state;
         }
       }
@@ -252,6 +280,19 @@ export class KeepCodeAgent {
     // Record training data
     const insights = deriveInsights(state, userTask);
     recordRun(this.config, userTask, state, insights).catch(() => {});
+    // Sync session to Supabase cloud (best-effort)
+    saveSessionToCloud({
+      sessionId:  this.config.sessionId,
+      task:       userTask,
+      model:      this.config.model,
+      provider:   this.config.provider,
+      status:     state.status as 'complete' | 'error' | 'aborted',
+      result:     state.result,
+      iterations: state.iterations,
+      toolCalls:  state.toolCallCount,
+      tokenCount: state.tokenCount,
+      durationMs: Date.now() - state.startTime,
+    }).catch(() => {});
 
     return state;
   }

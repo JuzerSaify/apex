@@ -28,9 +28,18 @@ export type AgentStatus =
   | 'error'
   | 'aborted';
 
+export type AIProvider = 'ollama' | 'openai' | 'anthropic' | 'deepseek';
+
 export interface AgentConfig {
   model: string;
-  ollamaUrl: string;
+  /** Which AI provider to use */
+  provider: AIProvider;
+  /** API base URL — for Ollama default http://localhost:11434; for cloud providers this is optional override */
+  apiBaseUrl: string;
+  /** API key — required for openai / anthropic / deepseek */
+  apiKey?: string;
+  /** @deprecated use apiBaseUrl */
+  ollamaUrl?: string;
   temperature: number;
   maxIterations: number;
   contextWindow: number;

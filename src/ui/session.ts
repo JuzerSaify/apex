@@ -1,28 +1,34 @@
 import readline from 'readline';
 import crypto from 'crypto';
 import { KeepCodeAgent } from '../agent/loop.js';
-import { OllamaProvider } from '../providers/ollama/index.js';
+import { createProvider } from '../providers/factory.js';
 import { EventRenderer } from './renderer.js';
 import { printBanner } from './components/banner.js';
 import { Spinner } from './components/spinner.js';
 import { pickModel } from './components/model_picker.js';
 import { renderTable } from './components/table.js';
 import { theme } from './theme.js';
-import { formatModelSize, detectToolSupport } from '../providers/ollama/models.js';
 import { loadConfig, initConfig } from '../config/loader.js';
-import { DEFAULT_CONFIG } from '../config/defaults.js';
-import type { AgentConfig, Message } from '../types/index.js';
+import { DEFAULT_CONFIG, OLLAMA_BASE_URL } from '../config/defaults.js';
+import { auth } from '../auth/index.js';
+import { checkForUpdate, printUpdateBanner } from '../updater/index.js';
+import { loadMCPServers } from '../mcp/manager.js';
+import { listRecentSessions } from '../db/sync.js';
+import type { AgentConfig, Message, AIProvider } from '../types/index.js';
 
-const PACKAGE_VERSION = '1.3.0';
+const PACKAGE_VERSION = '1.4.0';
 
 /** Commands available in the REPL */
 const COMMANDS: Record<string, string> = {
   '/help':         'Show available commands',
-  '/models':       'List available Ollama models',
+  '/models':       'List available models for current provider',
   '/model <name>': 'Switch to a different model',
+  '/provider':     'Show current AI provider',
   '/clear':        'Clear conversation history',
   '/history':      'Show conversation history summary',
+  '/sessions':     'Show recent cloud sessions (requires login)',
   '/status':       'Show current session config',
+  '/whoami':       'Show current logged-in user',
   '/exit':         'Exit KeepCode',
 };
 
@@ -126,16 +132,12 @@ export class KeepCodeSession {
       case '/models': {
         const spinner = new Spinner('Fetching models...').start();
         try {
-          const provider = new OllamaProvider(this.config.ollamaUrl);
+          const provider = createProvider(this.config);
           const models   = await provider.fetchModels();
           spinner.stop();
           renderTable({
-            head: ['Model', 'Size', 'Tool Support'],
-            rows: models.map((m) => [
-              m.name,
-              formatModelSize(m.size),
-              detectToolSupport(m) ? '✓' : '✗',
-            ]),
+            head: ['Model', 'Tool Support'],
+            rows: models.map((m) => [m.name, m.supportsTools ? '✓' : '✗']),
           });
         } catch (e) {
           spinner.fail('Failed to fetch models');
@@ -150,6 +152,40 @@ export class KeepCodeSession {
         } else {
           this.config.model = modelName;
           console.log(`\n  Switched model → ${theme.accent(modelName)}\n`);
+        }
+        break;
+      }
+      case '/provider': {
+        console.log(`\n  Provider: ${theme.accent(this.config.provider)}  Model: ${theme.accent(this.config.model)}\n`);
+        break;
+      }
+      case '/sessions': {
+        const spinner = new Spinner('Loading session history...').start();
+        const sessions = await listRecentSessions(10);
+        spinner.stop();
+        if (sessions.length === 0) {
+          console.log('\n  No sessions found. Login with: keepcode login\n');
+        } else {
+          renderTable({
+            head: ['Task (preview)', 'Provider', 'Status', 'Iters'],
+            rows: sessions.map((s) => [
+              s.task.slice(0, 40) + (s.task.length > 40 ? '…' : ''),
+              s.provider,
+              s.status,
+              String(s.iterations),
+            ]),
+          });
+        }
+        break;
+      }
+      case '/whoami': {
+        const user = await auth.getUser();
+        if (user) {
+          console.log(`\n  Logged in as: ${theme.accent(user.email)}`);
+          if (user.display_name) console.log(`  Name: ${user.display_name}`);
+          console.log();
+        } else {
+          console.log('\n  Not logged in. Run: keepcode login\n');
         }
         break;
       }
@@ -179,7 +215,8 @@ export class KeepCodeSession {
           head: ['Setting', 'Value'],
           rows: [
             ['Model',        this.config.model],
-            ['Ollama URL',   this.config.ollamaUrl],
+            ['Provider',     this.config.provider],
+            ['API Base URL', this.config.apiBaseUrl],
             ['Temperature',  String(this.config.temperature)],
             ['Max Iters',    String(this.config.maxIterations)],
             ['Context Win',  String(this.config.contextWindow)],
@@ -202,7 +239,6 @@ export class KeepCodeSession {
   static async create(flags: Partial<AgentConfig> & { autoModel?: boolean }): Promise<KeepCodeSession> {
     const workingDir = flags.workingDir ?? process.cwd();
 
-    // Ensure .apex dirs exist
     await initConfig(workingDir);
 
     // Merge: defaults ← file config ← CLI flags
@@ -214,37 +250,58 @@ export class KeepCodeSession {
       workingDir,
     };
 
-    // Connect to Ollama
-    const provider = new OllamaProvider(merged.ollamaUrl);
+    // Check for updates silently (non-blocking)
+    checkForUpdate(PACKAGE_VERSION).then((latest) => {
+      if (latest) printUpdateBanner(PACKAGE_VERSION, latest);
+    }).catch(() => {});
 
-    const spinner = new Spinner('Connecting to Ollama...').start();
-    const alive = await provider.isAlive();
+    // Load MCP servers (non-blocking, errors are logged inside)
+    loadMCPServers(workingDir).catch(() => {});
+
+    // ── Provider connectivity check ────────────────────────────────────────
+    const provider = createProvider(merged as AgentConfig);
+    const providerLabel = merged.provider === 'ollama'
+      ? `Ollama (${merged.apiBaseUrl})`
+      : merged.provider.charAt(0).toUpperCase() + merged.provider.slice(1);
+
+    const spinner = new Spinner(`Connecting to ${providerLabel}...`).start();
+    const alive = await provider.isAlive().catch(() => false);
+
     if (!alive) {
-      spinner.fail('Cannot reach Ollama at ' + merged.ollamaUrl);
-      console.error('\n  Make sure Ollama is running: https://ollama.ai\n');
+      if (merged.provider === 'ollama') {
+        spinner.fail(`Cannot reach Ollama at ${merged.apiBaseUrl}`);
+        console.error('\n  Make sure Ollama is running: https://ollama.ai\n');
+        console.error('  Or switch provider: keepcode --provider openai --api-key sk-...\n');
+      } else {
+        spinner.fail(`Cannot connect to ${providerLabel}`);
+        console.error('\n  Check your API key and network connection.\n');
+      }
       process.exit(1);
     }
-    spinner.succeed('Ollama connected');
+    spinner.succeed(`${providerLabel} connected`);
 
-    // Pick model if not provided
+    // ── Model auto-selection / picker ─────────────────────────────────────
     let model = merged.model;
     if (!model) {
-      const models = await provider.fetchModels();
+      const models = await provider.fetchModels().catch(() => []);
       if (models.length === 0) {
-        console.error('\n  No models found. Run: ollama pull llama3.2\n');
+        if (merged.provider === 'ollama') {
+          console.error('\n  No models found. Run: ollama pull llama3.2\n');
+        } else {
+          console.error(`\n  No models found for ${providerLabel}. Set --model explicitly.\n`);
+        }
         process.exit(1);
       }
 
       if (flags.autoModel) {
-        // Pick largest model with tool support, or just largest
-        const withTools = models.filter((m) => detectToolSupport(m));
+        const withTools = models.filter((m) => m.supportsTools);
         model = (withTools[0] ?? models[0]).name;
-        console.log(`  Auto-selected model: \u001b[36m${model}\u001b[0m\n`);
+        console.log(`  Auto-selected model: \x1b[36m${model}\x1b[0m\n`);
       } else {
         const choices = models.map((m) => ({
           name: m.name,
-          size: formatModelSize(m.size),
-          toolSupport: detectToolSupport(m),
+          size: m.size ? `${(m.size / 1e9).toFixed(1)} GB` : '',
+          toolSupport: m.supportsTools ?? true,
         }));
         model = await pickModel(choices);
       }

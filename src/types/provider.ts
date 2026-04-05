@@ -1,6 +1,39 @@
 import type { Message, AgentConfig } from './agent.js';
 import type { ToolDefinition, ToolCall } from './tool.js';
 
+// ── Normalized response used by ALL providers ──────────────────────────────
+
+export interface ChatResponse {
+  content: string;
+  toolCalls: ToolCall[];
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface ModelInfo {
+  name: string;
+  displayName?: string;
+  size?: number;
+  supportsTools?: boolean;
+}
+
+// ── Unified provider interface ─────────────────────────────────────────────
+
+export interface IProvider {
+  readonly name: string;
+  isAlive(): Promise<boolean>;
+  fetchModels(): Promise<ModelInfo[]>;
+  chat(messages: Message[], tools: ToolDefinition[], config: AgentConfig): Promise<ChatResponse>;
+  streamFull(
+    messages: Message[],
+    tools: ToolDefinition[],
+    config: AgentConfig,
+    onToken: (token: string) => void
+  ): Promise<ChatResponse>;
+}
+
+// ── Legacy Ollama-specific types (kept for internal use in OllamaProvider) ─
+
 export interface OllamaModel {
   name: string;
   modified_at: string;
@@ -62,16 +95,4 @@ export interface OllamaStreamChunk {
   message: Partial<OllamaChatMessage>;
   done: boolean;
   eval_count?: number;
-}
-
-export interface IProvider {
-  name: string;
-  isAlive(): Promise<boolean>;
-  fetchModels(): Promise<OllamaModel[]>;
-  chat(
-    messages: Message[],
-    tools: ToolDefinition[],
-    config: AgentConfig
-  ): Promise<OllamaChatResponse>;
-  parseToolCalls(response: OllamaChatResponse): ToolCall[];
 }

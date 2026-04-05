@@ -4,6 +4,61 @@ All notable changes to KeepCode are documented here.
 
 ---
 
+## [v1.4.0] — 2026-04-10
+
+### Multi-Provider AI Support
+
+- **OpenAI** — GPT-4o, GPT-4o-mini, o1, o3-mini (and any OpenAI-compatible endpoint)
+- **Anthropic** — Claude 3.5 Sonnet, Claude 3.7 Sonnet (streaming SSE + tool_use blocks)
+- **DeepSeek** — DeepSeek-V3, DeepSeek-R1 (via OpenAI-compatible API)
+- **Ollama** — still fully supported as optional local provider
+- New CLI flags: `--provider openai|anthropic|deepseek|ollama`, `--api-key`, `--api-base`
+- API key auto-resolved from `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` env vars
+- `src/providers/openai/index.ts` — new streaming + tool-call provider
+- `src/providers/anthropic/index.ts` — new streaming SSE + tool_use provider
+- `src/providers/factory.ts` — `createProvider(config)` factory, replaces direct Ollama construction
+- Normalized `ChatResponse` interface — all providers return identical `{ content, toolCalls, inputTokens, outputTokens }`
+
+### KeepCode Cloud (Supabase)
+
+- **Google Sign-In** — `keepcode login` opens browser for Google OAuth PKCE flow
+- `keepcode logout` / `keepcode profile` commands
+- Sessions, memory, and MCP server configs sync to Supabase cloud
+- `src/auth/store.ts` — secure local session storage (`~/.keepcode/auth.json`, mode 0o600)
+- `src/auth/google.ts` — PKCE OAuth flow with local callback server (port 54321)
+- `src/auth/index.ts` — `AuthManager` class; singleton `auth` export
+- `src/db/client.ts` — Supabase client singleton
+- `src/db/sync.ts` — `saveSessionToCloud`, `listRecentSessions`, `syncMemoryToCloud`, `loadMemoryFromCloud`
+
+### MCP (Model Context Protocol)
+
+- `keepcode mcp add <name> <command> [args…]` — register an MCP server
+- `keepcode mcp list` — show all configured servers
+- Servers auto-connected at session start from `.keepcode/mcp.json`
+- MCP tools bridged into the agent tool registry with `serverName__toolName` prefixing
+- `src/mcp/client.ts` — `MCPClient` (JSON-RPC 2.0 over stdio, 30 s timeout)
+- `src/mcp/manager.ts` — `MCPManager`; `loadMCPServers`, `getMCPToolDefinitions`, `callMCPTool`
+
+### Auto-Update
+
+- `keepcode update` — checks npm registry and runs `npm update -g keepcode`
+- Update banner shown on session start when a new version is available
+- `src/updater/index.ts`
+
+### `keepcode sessions`
+
+- Lists recent cloud sessions with date, provider/model, task snippet, and status
+
+### Bug Fixes & Internal Refactors
+
+- `AgentConfig`: deprecated `ollamaUrl`, added `provider`, `apiKey`, `apiBaseUrl`
+- `IProvider` interface normalized; `ModelInfo` replaces Ollama-specific model shape
+- `src/providers/ollama/index.ts` updated to return `ChatResponse` / `ModelInfo`
+- `src/types/provider.ts`: typo `OlamaStreamChunk` → `OllamaStreamChunk` fixed
+- `package.json` version: `1.3.0` → `1.4.0`
+
+---
+
 ## [v1.3.0] — 2026-04-05
 
 ### Rebrand: Apex → KeepCode

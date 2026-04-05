@@ -1,10 +1,14 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { DEFAULT_CONFIG, KEEPCODE_DIR } from './defaults.js';
-import type { AgentConfig } from '../types/index.js';
+import type { AgentConfig, AIProvider } from '../types/index.js';
 
 interface ConfigFile {
   model?: string;
+  provider?: AIProvider;
+  apiKey?: string;
+  apiBaseUrl?: string;
+  /** @deprecated renamed to apiBaseUrl */
   ollamaUrl?: string;
   temperature?: number;
   maxIterations?: number;
@@ -24,14 +28,17 @@ export async function loadConfig(workingDir: string): Promise<Partial<AgentConfi
     const raw = await fs.readFile(configPath, 'utf8');
     const file = JSON.parse(raw) as ConfigFile;
     return {
-      model: file.model,
-      ollamaUrl: file.ollamaUrl,
-      temperature: file.temperature,
+      model:         file.model,
+      provider:      file.provider,
+      apiKey:        file.apiKey,
+      // backward compat: ollamaUrl was renamed to apiBaseUrl
+      apiBaseUrl:    file.apiBaseUrl ?? file.ollamaUrl,
+      temperature:   file.temperature,
       maxIterations: file.maxIterations,
       contextWindow: file.contextWindow,
-      maxTokens: file.maxTokens,
-      autoApprove: file.autoApprove,
-      verbose: file.verbose,
+      maxTokens:     file.maxTokens,
+      autoApprove:   file.autoApprove,
+      verbose:       file.verbose,
     };
   } catch {
     return {};

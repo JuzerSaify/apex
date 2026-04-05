@@ -2,7 +2,8 @@ import type { AgentConfig } from '../types/index.js';
 
 export const DEFAULT_CONFIG: Omit<AgentConfig, 'sessionId'> = {
   model: '',
-  ollamaUrl: 'http://localhost:11434',
+  provider: 'ollama',
+  apiBaseUrl: 'http://localhost:11434',
   temperature: 0.7,
   maxIterations: 50,
   contextWindow: 16384,
@@ -11,6 +12,12 @@ export const DEFAULT_CONFIG: Omit<AgentConfig, 'sessionId'> = {
   autoApprove: false,
   verbose: false,
 };
+
+// Provider base URLs
+export const OPENAI_BASE_URL    = 'https://api.openai.com/v1';
+export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
+export const DEEPSEEK_BASE_URL  = 'https://api.deepseek.com/v1';
+export const OLLAMA_BASE_URL    = 'http://localhost:11434';
 
 export const KEEPCODE_DIR = '.keepcode';
 /** @deprecated use KEEPCODE_DIR */
