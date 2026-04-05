@@ -2,7 +2,6 @@
  * Google OAuth PKCE flow for KeepCode CLI.
  * Opens the user's browser and listens on a local callback server.
  */
-import crypto from 'crypto';
 import http   from 'http';
 import { supabase } from '../db/client.js';
 import { saveSession, type StoredSession } from './store.js';
@@ -10,14 +9,45 @@ import { saveSession, type StoredSession } from './store.js';
 const CALLBACK_PORT = 54321;
 const CALLBACK_URL  = `http://localhost:${CALLBACK_PORT}/auth/callback`;
 
-function generatePKCE(): { verifier: string; challenge: string } {
-  const verifier  = crypto.randomBytes(32).toString('base64url');
-  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-  return { verifier, challenge };
+function buildHtml(success: boolean, errorMsg: string): string {
+  const icon   = success ? '\u2714' : '\u2718';
+  const title  = success ? 'KeepCode \u2014 Signed In' : 'KeepCode \u2014 Sign-In Failed';
+  const heading = success ? `${icon} Signed in successfully` : `${icon} Sign-in failed`;
+  const body    = success
+    ? 'You can close this tab and return to your terminal.'
+    : `<p style="color:#f87171">${errorMsg}</p><p>Return to your terminal and try <code>keepcode login</code> again.</p>`;
+  const accent  = success ? '#10B981' : '#EF4444';
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <title>${title}</title>
+    <meta charset="utf-8">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+           display:flex;justify-content:center;align-items:center;
+           min-height:100vh;background:#0d1117;color:#e6edf3}
+      .card{text-align:center;padding:48px 56px;border-radius:16px;
+            background:#161b22;border:1px solid #30363d;max-width:460px;width:90%}
+      h2{font-size:1.5rem;margin-bottom:12px;color:${accent}}
+      p{color:#8b949e;line-height:1.6;margin-top:8px}
+      code{background:#21262d;padding:2px 7px;border-radius:5px;
+           font-family:'SF Mono','Fira Code',monospace;font-size:.875rem}
+      .icon{font-size:3rem;margin-bottom:16px;display:block}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <span class="icon" style="color:${accent}">${icon}</span>
+      <h2>${heading}</h2>
+      ${body}
+    </div>
+  </body>
+</html>`;
 }
 
 export async function startGoogleLogin(): Promise<StoredSession> {
-  // 1. Get the OAuth redirect URL from Supabase (skipBrowserRedirect keeps us in control)
+  // 1. Get the OAuth redirect URL from Supabase
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -33,8 +63,8 @@ export async function startGoogleLogin(): Promise<StoredSession> {
 
   // 2. Open browser
   const { default: openBrowser } = await import('open');
-  console.log('\n  Opening browser for Google Sign-In...\n');
-  console.log(`  If the browser didn't open, visit:\n  ${data.url}\n`);
+  console.log('\n  Opening browser for Google Sign-In...');
+  console.log(`\n  ${data.url}\n  ${'\u2191'} If browser did not open, visit this URL manually.\n`);
   await openBrowser(data.url);
 
   // 3. Wait for callback
@@ -51,34 +81,33 @@ export async function startGoogleLogin(): Promise<StoredSession> {
         return;
       }
 
-      const url   = new URL(req.url, CALLBACK_URL);
-      const code  = url.searchParams.get('code');
+      const url      = new URL(req.url, CALLBACK_URL);
+      const code     = url.searchParams.get('code');
       const errParam = url.searchParams.get('error');
 
-      // Send HTML response back to browser
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-          <head><title>KeepCode — Signed In</title>
-          <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0d1117;color:#e6edf3}
-          .card{text-align:center;padding:40px;border-radius:12px;background:#161b22;border:1px solid #30363d}</style></head>
-          <body><div class="card"><h2>✓ KeepCode Authenticated</h2><p>You can close this tab and return to the terminal.</p></div></body>
-        </html>
-      `);
-
+      // Clear timeout and close server before responding
       clearTimeout(timeout);
       server.close();
 
+      // ── Error from Google / Supabase ──────────────────────────────────────
       if (errParam) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(buildHtml(false, `OAuth error: ${errParam}`));
         reject(new Error(`OAuth error: ${errParam}`));
         return;
       }
 
+      // ── No code returned ──────────────────────────────────────────────────
       if (!code) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(buildHtml(false, 'No authorization code was received.'));
         reject(new Error('No auth code in callback'));
         return;
       }
+
+      // ── Success — send page immediately so browser shows feedback ─────────
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(buildHtml(true, ''));
 
       // 4. Exchange code for session
       const { data: sessionData, error: sessErr } = await supabase.auth.exchangeCodeForSession(code);
@@ -104,9 +133,7 @@ export async function startGoogleLogin(): Promise<StoredSession> {
       resolve(stored);
     });
 
-    server.listen(CALLBACK_PORT, '127.0.0.1', () => {
-      // server is ready
-    });
+    server.listen(CALLBACK_PORT, '127.0.0.1');
 
     server.on('error', (err) => {
       clearTimeout(timeout);

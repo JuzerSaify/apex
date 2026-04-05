@@ -66,6 +66,10 @@ program
     const session = await KeepCodeSession.create(flags);
 
     if (opts.run) {
+      if (!await auth.isAuthenticated()) {
+        console.error('\n  Not signed in. Run: keepcode login\n');
+        process.exit(1);
+      }
       await session.runTask(opts.run as string);
       process.exit(0);
     } else {

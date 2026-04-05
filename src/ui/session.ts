@@ -10,7 +10,8 @@ import { renderTable } from './components/table.js';
 import { theme } from './theme.js';
 import { loadConfig, initConfig } from '../config/loader.js';
 import { DEFAULT_CONFIG, OLLAMA_BASE_URL } from '../config/defaults.js';
-import { auth } from '../auth/index.js';
+import boxen from 'boxen';
+import { auth, type StoredSession } from '../auth/index.js';
 import { checkForUpdate, printUpdateBanner } from '../updater/index.js';
 import { loadMCPServers } from '../mcp/manager.js';
 import { listRecentSessions } from '../db/sync.js';
@@ -40,6 +41,7 @@ export class KeepCodeSession {
   private renderer = new EventRenderer();
   private isRunning = false;
   private pickerActive = false;
+  private user: StoredSession['user'] | null = null;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -68,6 +70,31 @@ export class KeepCodeSession {
   async repl(): Promise<void> {
     printBanner(PACKAGE_VERSION, this.config.model, this.config.workingDir);
 
+    // ── Auth check ────────────────────────────────────────────────────────────
+    this.user = await auth.getUser().catch(() => null);
+    if (!this.user) {
+      const cols = Math.min(process.stdout.columns ?? 80, 70);
+      console.log(
+        '\n' +
+        boxen(
+          `  ${theme.error('\u2718')}  You are not signed in.\n\n` +
+          `  Agent features are locked.\n\n` +
+          `  Type ${theme.brand('/login')} to sign in with Google,\n` +
+          `  or run ${theme.accent('keepcode login')} in a new terminal.`,
+          {
+            padding:        { top: 1, bottom: 1, left: 2, right: 2 },
+            width:          cols,
+            borderStyle:    'round',
+            borderColor:    '#EF4444',
+            title:          '  Sign In Required  ',
+            titleAlignment: 'center',
+          }
+        )
+      );
+    } else {
+      console.log(`  ${theme.dim('Signed in as')} ${theme.accent(this.user.email)}`);
+    }
+
     const rl = readline.createInterface({
       input:    process.stdin,
       output:   process.stdout,
@@ -89,6 +116,12 @@ export class KeepCodeSession {
 
       if (input.startsWith('/')) {
         await this.handleCommand(input, rl);
+        rl.prompt();
+        return;
+      }
+
+      if (!this.user) {
+        console.log(`\n  ${theme.error('\u2718')}  Not signed in. Type ${theme.brand('/login')} to authenticate.\n`);
         rl.prompt();
         return;
       }
@@ -147,8 +180,7 @@ export class KeepCodeSession {
           ['/sessions', 'Cloud session history  (requires login)'],
           ['/status',   'Show config & stats'],
         ]);
-        section('○', 'System', [
-          ['/tools',   'List registered tools by category'],
+        section('○', 'System', [          ['/login',   'Sign in to KeepCode with Google'],          ['/tools',   'List registered tools by category'],
           ['/whoami',  'Show logged-in user'],
           ['/help',    'Show this help'],
           ['/exit',    'Exit KeepCode'],
@@ -307,12 +339,31 @@ export class KeepCodeSession {
       }
       case '/whoami': {
         const user = await auth.getUser();
+        this.user = user;  // keep field in sync
         if (user) {
-          console.log(`\n  Logged in as: ${theme.accent(user.email)}`);
-          if (user.display_name) console.log(`  Name: ${user.display_name}`);
+          console.log(`\n  ${theme.success('\u2714')}  ${theme.dim('Signed in as')} ${theme.accent(user.email)}`);
+          if (user.display_name) console.log(`     ${theme.dim('Name:')}  ${user.display_name}`);
           console.log();
         } else {
-          console.log('\n  Not logged in. Run: keepcode login\n');
+          console.log(`\n  ${theme.error('\u2718')}  Not signed in. Type ${theme.brand('/login')} to authenticate.\n`);
+        }
+        break;
+      }
+      case '/login': {
+        rl.pause();
+        this.pickerActive = true;
+        console.log(`\n  ${theme.dim('Opening browser for Google Sign-In...')}\n`);
+        try {
+          const stored = await auth.login();
+          this.user = stored.user;
+          console.log(`\n  ${theme.success('\u2714')}  Signed in as ${theme.accent(stored.user.email)}\n`);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.log(`\n  ${theme.error('\u2718')}  Login failed: ${theme.muted(msg)}\n`);
+        } finally {
+          this.pickerActive = false;
+          process.stdin.resume();
+          rl.resume();
         }
         break;
       }
